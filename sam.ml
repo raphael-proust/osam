@@ -12,64 +12,59 @@ end = struct
     let of_int _ = failwith "TODO"
 end
 
+module Cursor : sig
+    (* a cursor describes a range of characters (like the dot in acme) *)
+	type t = int * int
+    val shift: t -> int -> t
+end = struct
+    type t = int * int
+    let shift (s,e) o = (s+o, e+o)
+end
+
 module Text : sig
     type t
-    type offset = int
+    val length: t -> int
 
-    (* a cursor describes a range of characters (like the dot in acme) *)
-    type cursor = offset * offset
-
-    val shift: cursor -> offset -> cursor
-    val neg: cursor -> cursor
-
-    val nth: offset -> t -> Codepoint.t
-    val sub: t -> cursor -> t
-    val fold: t -> 'a -> ('a -> Codepoint.t -> 'a) -> 'a
-    val length: t -> offset
     val empty: t
-    val cat: t list -> t
-
-    val get: in_channel -> t
-    val put: t -> out_channel -> unit
 	val from_string: string -> t
 	val to_string: t -> string
+
+    val nth: int -> t -> Codepoint.t
+    val sub: t -> Cursor.t -> t
+    val fold: t -> 'a -> ('a -> Codepoint.t -> 'a) -> 'a
+    val cat: t list -> t
+
 end = struct
     type t
-    type offset = int
-    type cursor = offset * offset
+    let length _ = failwith "TODO"
 
-    let shift _ _ = failwith "TODO"
-    let neg _ = failwith "TODO"
+    let empty = failwith "TODO"
+	let from_string _ = failwith "TODO"
+	let to_string _ = failwith "TODO"
 
     let nth _ _ = failwith "TODO"
     let sub _ _ = failwith "TODO"
     let fold _ _ _ = failwith "TODO"
-    let length _ = failwith "TODO"
-    let empty = failwith "TODO"
     let cat _ = failwith "TODO"
 
-    let get _ = failwith "TODO"
-    let put _ _ = failwith "TODO"
-	let from_string _ = failwith "TODO"
-	let to_string _ = failwith "TODO"
 
 end
 
 (*TODO: functorise by Text *)
 module Patch : sig
 
-    type t = (Text.cursor * Text.t)
+    type t = (Cursor.t * Text.t)
     val apply: Text.t -> t -> Text.t
-    val shift: t -> Text.offset -> t
+    val shift: t -> int -> t
 
     (*intertwines apply and shift correctly*)
     val apply_batch: t list -> Text.t -> Text.t
 
 end = struct
 
-    type t = (Text.cursor * Text.t)
+    type t = (Cursor.t * Text.t)
     let apply _ _ = failwith "TODO"
-    let shift (c,t) o = (Text.shift c o, t)
+    let shift (c,t) o = (Cursor.shift c o, t)
 
     let apply_batch cs text =
         (* We first sort the patches by initial offset so it is easy to detect
@@ -108,11 +103,11 @@ module Marks : sig
     type t = unit
     type env
     val empty: env
-    val put: env -> t -> Text.cursor -> env
-    val get: env -> t -> Text.cursor option
+    val put: env -> t -> Cursor.t -> env
+    val get: env -> t -> Cursor.t option
 end = struct
     type t = unit
-    type env = Text.cursor option
+    type env = Cursor.t option
     let empty = None
     let put _ () c = Some c
     let get e () = e
@@ -123,8 +118,8 @@ module Regexp : sig
     type dfa
     val compile: nfa -> dfa
     val has_match: dfa -> Text.t -> bool
-    val next_match: dfa -> Text.t -> Text.cursor option
-    val all_matches: dfa -> Text.t -> Text.cursor list
+    val next_match: dfa -> Text.t -> Cursor.t option
+    val all_matches: dfa -> Text.t -> Cursor.t list
     module DSL: sig
         val point: Codepoint.t -> nfa
         val cat: nfa list -> nfa
@@ -262,7 +257,7 @@ type action =
         (* Pass the text to be edited *)
         text:Text.t ->
         (* Some context *)
-        dot:Text.cursor -> marks:Marks.env ->
+        dot:Cursor.t -> marks:Marks.env ->
         (* And the action to be executed *)
         t ->
         (* We return a patch rather than modifying the text *)
@@ -375,6 +370,9 @@ let rec action text = function
 	| Substitute (se, sr) -> failwith "TODO"
 	| Delete ->
         [((0, Text.length text) , Text.empty)]
+
+	(* FIXME: this cannot be implemented right now because we don't have a
+	 * view of the whole text (to resolve the addresses on). *)
 	| Move a -> failwith "TODO"
 	| Copy a -> failwith "TODO"
 
