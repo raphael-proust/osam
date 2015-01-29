@@ -1,51 +1,51 @@
 
 module Codepoint : sig
-    type t
-    val width: t -> int (* returns between 1 and 6 *)
-    val of_char: char -> t
-    val of_int: int -> t
-    (*TODO: properties (lowercase, uppercase, scripts, &c.) using uucp*)
+	type t
+	val width: t -> int (* returns between 1 and 6 *)
+	val of_char: char -> t
+	val of_int: int -> t
+	(*TODO: properties (lowercase, uppercase, scripts, &c.) using uucp*)
 end = struct
-    type t
-    let width _ = failwith "TODO"
-    let of_char _ = failwith "TODO"
-    let of_int _ = failwith "TODO"
+	type t
+	let width _ = failwith "TODO"
+	let of_char _ = failwith "TODO"
+	let of_int _ = failwith "TODO"
 end
 
 module Cursor : sig
-    (* a cursor describes a range of characters (like the dot in acme) *)
+	(* a cursor describes a range of characters (like the dot in acme) *)
 	type t = int * int
-    val shift: t -> int -> t
+	val shift: t -> int -> t
 end = struct
-    type t = int * int
-    let shift (s,e) o = (s+o, e+o)
+	type t = int * int
+	let shift (s,e) o = (s+o, e+o)
 end
 
 module Text : sig
-    type t
-    val length: t -> int
+	type t
+	val length: t -> int
 
-    val empty: t
+	val empty: t
 	val from_string: string -> t
 	val to_string: t -> string
 
-    val nth: int -> t -> Codepoint.t
-    val sub: t -> Cursor.t -> t
-    val fold: t -> 'a -> ('a -> Codepoint.t -> 'a) -> 'a
-    val cat: t list -> t
+	val nth: int -> t -> Codepoint.t
+	val sub: t -> Cursor.t -> t
+	val fold: t -> 'a -> ('a -> Codepoint.t -> 'a) -> 'a
+	val cat: t list -> t
 
 end = struct
-    type t
-    let length _ = failwith "TODO"
+	type t
+	let length _ = failwith "TODO"
 
-    let empty = failwith "TODO"
+	let empty = failwith "TODO"
 	let from_string _ = failwith "TODO"
 	let to_string _ = failwith "TODO"
 
-    let nth _ _ = failwith "TODO"
-    let sub _ _ = failwith "TODO"
-    let fold _ _ _ = failwith "TODO"
-    let cat _ = failwith "TODO"
+	let nth _ _ = failwith "TODO"
+	let sub _ _ = failwith "TODO"
+	let fold _ _ _ = failwith "TODO"
+	let cat _ = failwith "TODO"
 
 
 end
@@ -53,96 +53,96 @@ end
 (*TODO: functorise by Text *)
 module Patch : sig
 
-    type t = (Cursor.t * Text.t)
-    val apply: Text.t -> t -> Text.t
-    val shift: t -> int -> t
+	type t = (Cursor.t * Text.t)
+	val apply: Text.t -> t -> Text.t
+	val shift: t -> int -> t
 
-    (*intertwines apply and shift correctly*)
-    val apply_batch: t list -> Text.t -> Text.t
+	(*intertwines apply and shift correctly*)
+	val apply_batch: t list -> Text.t -> Text.t
 
 end = struct
 
-    type t = (Cursor.t * Text.t)
-    let apply _ _ = failwith "TODO"
-    let shift (c,t) o = (Cursor.shift c o, t)
+	type t = (Cursor.t * Text.t)
+	let apply _ _ = failwith "TODO"
+	let shift (c,t) o = (Cursor.shift c o, t)
 
-    let apply_batch cs text =
-        (* We first sort the patches by initial offset so it is easy to detect
-         * conflicts and keep track of relative positions. *)
-        let cs = List.sort (fun (s1,_) (s2,_) -> compare s1 s2) cs in
-        let (text, _, _) =
-            List.fold_left
-                (* text is the text as is being modified,
-                 * last is the highest offset affected,
-                 * corr is the correction to apply to patches
-                 *)
-                (fun (text, last, corr) p ->
-                    let p = shift p corr in
-                    let (s,e), t = p in
-                    if s < last then
-                        (*TODO: we probably want a first pass on the list with a
-                         * caller-provided merge function. In the simplest case,
-                         * merge raises an exception that the caller catches. *)
-                        failwith "TODO: error management, the patches collide"
-                    else
-                        let t = apply t p in
-                        let corr = corr - (e - s) + Text.length t in
-                        (t, e, corr)
-                )
-                (text, 0, 0)
-                cs
-        in
-        text
+	let apply_batch cs text =
+		(* We first sort the patches by initial offset so it is easy to detect
+		 * conflicts and keep track of relative positions. *)
+		let cs = List.sort (fun (s1,_) (s2,_) -> compare s1 s2) cs in
+		let (text, _, _) =
+			List.fold_left
+				(* text is the text as is being modified,
+				 * last is the highest offset affected,
+				 * corr is the correction to apply to patches
+				 *)
+				(fun (text, last, corr) p ->
+					let p = shift p corr in
+					let (s,e), t = p in
+					if s < last then
+						(*TODO: we probably want a first pass on the list with a
+						 * caller-provided merge function. In the simplest case,
+						 * merge raises an exception that the caller catches. *)
+						failwith "TODO: error management, the patches collide"
+					else
+						let t = apply t p in
+						let corr = corr - (e - s) + Text.length t in
+						(t, e, corr)
+				)
+				(text, 0, 0)
+				cs
+		in
+		text
 
 
 end
 
 
 module Marks : sig
-    (*TODO: make several Marks possible (especially using more than unit) *)
-    type t = unit
-    type env
-    val empty: env
-    val put: env -> t -> Cursor.t -> env
-    val get: env -> t -> Cursor.t option
+	(*TODO: make several Marks possible (especially using more than unit) *)
+	type t = unit
+	type env
+	val empty: env
+	val put: env -> t -> Cursor.t -> env
+	val get: env -> t -> Cursor.t option
 end = struct
-    type t = unit
-    type env = Cursor.t option
-    let empty = None
-    let put _ () c = Some c
-    let get e () = e
+	type t = unit
+	type env = Cursor.t option
+	let empty = None
+	let put _ () c = Some c
+	let get e () = e
 end
 
 module Regexp : sig
-    type nfa
-    type dfa
-    val compile: nfa -> dfa
-    val has_match: dfa -> Text.t -> Cursor.t -> bool
-    val next_match: dfa -> Text.t -> Cursor.t -> Cursor.t option
-    val all_matches: dfa -> Text.t -> Cursor.t -> Cursor.t list
-    module DSL: sig
-        val point: Codepoint.t -> nfa
-        val cat: nfa list -> nfa
-        val alt: nfa list -> nfa
-        val star: nfa -> nfa
-        val question: nfa -> nfa
-        val plus: nfa -> nfa
-    end
+	type nfa
+	type dfa
+	val compile: nfa -> dfa
+	val has_match: dfa -> Text.t -> Cursor.t -> bool
+	val next_match: dfa -> Text.t -> Cursor.t -> Cursor.t option
+	val all_matches: dfa -> Text.t -> Cursor.t -> Cursor.t list
+	module DSL: sig
+		val point: Codepoint.t -> nfa
+		val cat: nfa list -> nfa
+		val alt: nfa list -> nfa
+		val star: nfa -> nfa
+		val question: nfa -> nfa
+		val plus: nfa -> nfa
+	end
 end = struct
-    type nfa
-    type dfa
-    let compile _ = failwith "TODO"
-    let has_match _ _ _ = failwith "TODO"
-    let next_match _ _ _ = failwith "TODO"
-    let all_matches _ _ _ = failwith "TODO"
-    module DSL = struct
-        let point _ = failwith "TODO"
-        let cat _ = failwith "TODO"
-        let alt _ = failwith "TODO"
-        let star _ = failwith "TODO"
-        let question _ = failwith "TODO"
-        let plus _ = failwith "TODO"
-    end
+	type nfa
+	type dfa
+	let compile _ = failwith "TODO"
+	let has_match _ _ _ = failwith "TODO"
+	let next_match _ _ _ = failwith "TODO"
+	let all_matches _ _ _ = failwith "TODO"
+	module DSL = struct
+		let point _ = failwith "TODO"
+		let cat _ = failwith "TODO"
+		let alt _ = failwith "TODO"
+		let star _ = failwith "TODO"
+		let question _ = failwith "TODO"
+		let plus _ = failwith "TODO"
+	end
 end
 
 module Command : sig
@@ -155,15 +155,14 @@ end = struct
 	type t = string
 	type status = unit (*TODO: allow for lwt, functorize Action over Cmd*)
 	let build s = s
-	let run ?stdin ?stdout t =
-		failwith "TODO"
+	let run ?stdin ?stdout t = failwith "TODO"
 end
 
 (*TODO: functorise over marks and text, provide both UTF8 and ASCII text*)
 module Actions : sig
 
-    type substitutee
-    type substitutor
+type substitutee
+type substitutor
 
 type addr =
 	(** The current range. *)
@@ -250,23 +249,22 @@ type action =
 	(** Sets the given mark to address the current selection. *)
 	| SetMark of Marks.t
 
-	(* TODO: some form of yank and paste? *)
-    type t = addr * action
-
-    val run:
-        (* Pass the text to be edited *)
-        text:Text.t ->
-        (* Some context *)
-        dot:Cursor.t -> marks:Marks.env ->
-        (* And the action to be executed *)
-        t ->
-        (* We return a patch rather than modifying the text *)
-        (Patch.t list * Marks.env)
+val run:
+	(* Pass the text to be edited *)
+	text:Text.t ->
+	(* Some context *)
+	dot:Cursor.t -> marks:Marks.env ->
+	(* A target range *)
+	addr ->
+	(* And the action to be executed *)
+	action ->
+	(* We return a patch rather than modifying the text *)
+	(Patch.t list * Marks.env)
 
 end = struct
 
-    type substitutee
-    type substitutor
+type substitutee
+type substitutor
 
 (** Addresses: addresses describe ranges in the document *)
 type addr =
@@ -300,9 +298,6 @@ type action =
 	| Pipe of Command.t
 	| SetMark of Marks.t
 
-type t =
-	addr * action
-
 
 let rec address text dot marks = function
 	| Dot -> dot
@@ -310,10 +305,10 @@ let rec address text dot marks = function
 	| Line _ -> failwith "TODO"
 	| LastLine -> failwith "TODO"
 	| Mark m -> begin
-        match Marks.get marks m with
-        | Some c -> c
-        | None -> failwith "TODO: error management"
-    end
+		match Marks.get marks m with
+		| Some c -> c
+		| None -> failwith "TODO: error management"
+	end
 	| Plus (a1, a2) -> failwith "TODO"
 	| Minus (a1, a2) -> failwith "TODO"
 	| Comma (a1, a2) -> failwith "TODO"
@@ -335,7 +330,7 @@ let rec action text dot marks = function
 		in
 		(List.flatten patchess, marks)
 	| For (re, act) ->
-        let dfa = Regexp.compile re in
+		let dfa = Regexp.compile re in
 		let dots = Regexp.all_matches dfa text dot in
 		let (patchess, marks) =
 			List.fold_left (fun (patchess, marks) dot ->
@@ -347,7 +342,7 @@ let rec action text dot marks = function
 		in
 		(List.flatten patchess, marks)
 	| Rof (re, act) ->
-        let dfa = Regexp.compile re in
+		let dfa = Regexp.compile re in
 		let dots = Regexp.all_matches dfa text dot in
 		let dots = ignore dots; failwith "TODO: reverse dots" in
 		let (patchess, marks) =
@@ -360,27 +355,27 @@ let rec action text dot marks = function
 		in
 		(List.flatten patchess, marks)
 	| If (re, act) ->
-        let dfa = Regexp.compile re in
-        if Regexp.has_match dfa text dot then
-            action text dot marks act
-        else
-            ([], marks)
+		let dfa = Regexp.compile re in
+		if Regexp.has_match dfa text dot then
+			action text dot marks act
+		else
+			([], marks)
 	| Ifnot (re, act) ->
-        let dfa = Regexp.compile re in
-        if Regexp.has_match dfa text dot then
-            ([], marks)
-        else
-            action text dot marks act
+		let dfa = Regexp.compile re in
+		if Regexp.has_match dfa text dot then
+			([], marks)
+		else
+			action text dot marks act
 	| Append t ->
-        let e = Text.length text in
-        ([((e,e), t)], marks)
+		let e = Text.length text in
+		([((e,e), t)], marks)
 	| Insert t ->
-        ([((0,0), t)], marks)
+		([((0,0), t)], marks)
 	| Replace t ->
-        ([((0, Text.length text) , t)], marks)
+		([((0, Text.length text) , t)], marks)
 	| Substitute (se, sr) -> failwith "TODO"
 	| Delete ->
-        ([((0, Text.length text) , Text.empty)], marks)
+		([((0, Text.length text) , Text.empty)], marks)
 
 	| Move a ->
 		let target = address text dot marks a in
@@ -414,9 +409,9 @@ let rec action text dot marks = function
 	| SetMark m ->
 		([], Marks.put marks m dot)
 
-let run ~text ~dot ~marks (addr, act) =
-    let (start, _) as dot = address text dot marks addr in
-    let (patches, marks) = action text dot marks act in
+let run ~text ~dot ~marks addr act =
+	let (start, _) as dot = address text dot marks addr in
+	let (patches, marks) = action text dot marks act in
 	(patches, marks)
 
 end
