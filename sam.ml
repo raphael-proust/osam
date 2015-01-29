@@ -117,9 +117,9 @@ module Regexp : sig
     type nfa
     type dfa
     val compile: nfa -> dfa
-    val has_match: dfa -> Text.t -> bool
-    val next_match: dfa -> Text.t -> Cursor.t option
-    val all_matches: dfa -> Text.t -> Cursor.t list
+    val has_match: dfa -> Text.t -> Cursor.t -> bool
+    val next_match: dfa -> Text.t -> Cursor.t -> Cursor.t option
+    val all_matches: dfa -> Text.t -> Cursor.t -> Cursor.t list
     module DSL: sig
         val point: Codepoint.t -> nfa
         val cat: nfa list -> nfa
@@ -132,9 +132,9 @@ end = struct
     type nfa
     type dfa
     let compile _ = failwith "TODO"
-    let has_match _ _ = failwith "TODO"
-    let next_match _ _ = failwith "TODO"
-    let all_matches _ _ = failwith "TODO"
+    let has_match _ _ _ = failwith "TODO"
+    let next_match _ _ _ = failwith "TODO"
+    let all_matches _ _ _ = failwith "TODO"
     module DSL = struct
         let point _ = failwith "TODO"
         let cat _ = failwith "TODO"
@@ -261,7 +261,7 @@ type action =
         (* And the action to be executed *)
         t ->
         (* We return a patch rather than modifying the text *)
-        Patch.t list
+        (Patch.t list * Marks.env)
 
 end = struct
 
@@ -323,53 +323,64 @@ let rec address text dot marks = function
 
 (*We don't pass dot because we expect the caller to use Text.sub
  * Will have to be changed to accomodate for Move and Copy. *)
-let rec action text = function
+let rec action text dot marks = function
 	| Dispatch acts ->
-        (*NOTE: we use map (not fold) which means that SetMark doesn't affect
-         * the other actions. Currently, SetMark is nop, need fixing. *)
-        List.map (action text) acts
-        |> List.flatten
+		let (patchess, marks) =
+			List.fold_left (fun (patchess, marks) act ->
+				let (patches, marks) = action text dot marks act in
+				(patches :: patchess, marks)
+				)
+				([], marks)
+				acts
+		in
+		(List.flatten patchess, marks)
 	| For (re, act) ->
         let dfa = Regexp.compile re in
-        Regexp.all_matches dfa text
-        |> List.map (fun ((start, _) as cursor) ->
-            let text = Text.sub text cursor in
-            let patches = action text act in
-            List.map (fun p -> Patch.shift p (~- start)) patches
-            )
-        |> List.flatten
+		let dots = Regexp.all_matches dfa text dot in
+		let (patchess, marks) =
+			List.fold_left (fun (patchess, marks) dot ->
+				let (patches, marks) = action text dot marks act in
+				(patches :: patchess, marks)
+				)
+				([], marks)
+				dots
+		in
+		(List.flatten patchess, marks)
 	| Rof (re, act) ->
         let dfa = Regexp.compile re in
-        Regexp.all_matches dfa text
-        |> (fun _ -> failwith "TODO: inverse all the cursors")
-        |> List.map (fun ((start, _) as cursor) ->
-            let text = Text.sub text cursor in
-            let patches = action text act in
-            List.map (fun p -> Patch.shift p (~- start)) patches
-            )
-        |> List.flatten
+		let dots = Regexp.all_matches dfa text dot in
+		let dots = ignore dots; failwith "TODO: reverse dots" in
+		let (patchess, marks) =
+			List.fold_left (fun (patchess, marks) dot ->
+				let (patches, marks) = action text dot marks act in
+				(patches :: patchess, marks)
+				)
+				([], marks)
+				dots
+		in
+		(List.flatten patchess, marks)
 	| If (re, act) ->
         let dfa = Regexp.compile re in
-        if Regexp.has_match dfa text then
-            action text act
+        if Regexp.has_match dfa text dot then
+            action text dot marks act
         else
-            []
+            ([], marks)
 	| Ifnot (re, act) ->
         let dfa = Regexp.compile re in
-        if Regexp.has_match dfa text then
-            []
+        if Regexp.has_match dfa text dot then
+            ([], marks)
         else
-            action text act
+            action text dot marks act
 	| Append t ->
         let e = Text.length text in
-        [((e,e), t)]
+        ([((e,e), t)], marks)
 	| Insert t ->
-        [((0,0), t)]
+        ([((0,0), t)], marks)
 	| Replace t ->
-        [((0, Text.length text) , t)]
+        ([((0, Text.length text) , t)], marks)
 	| Substitute (se, sr) -> failwith "TODO"
 	| Delete ->
-        [((0, Text.length text) , Text.empty)]
+        ([((0, Text.length text) , Text.empty)], marks)
 
 	(* FIXME: this cannot be implemented right now because we don't have a
 	 * view of the whole text (to resolve the addresses on). *)
@@ -381,12 +392,12 @@ let rec action text = function
 		let (_ : Command.status) =
 			Command.run ~stdin:(Text.to_string text) cmd
 		in
-		[]
+		([], marks)
 	| PipeIn cmd ->
 		let b = Buffer.create 100 in
 		let (_ : Command.status) = Command.run ~stdout:b cmd in
 		let res = Text.from_string (Buffer.contents b) in
-		[(0, Text.length text), res]
+		([(0, Text.length text), res], marks)
 	| Pipe cmd ->
 		let b = Buffer.create 100 in
 		let (_ : Command.status) =
@@ -396,13 +407,14 @@ let rec action text = function
 				cmd
 		in
 		let res = Text.from_string (Buffer.contents b) in
-		[(0, Text.length text), res]
+		([(0, Text.length text), res], marks)
 
-	| SetMark m -> failwith "TODO"
+	| SetMark m ->
+		([], Marks.put marks m dot)
 
 let run ~text ~dot ~marks (addr, act) =
     let (start, _) as dot = address text dot marks addr in
-    let patches = action (Text.sub text dot) act in
-    List.map (fun p -> Patch.shift p (~- start)) patches
+    let (patches, marks) = action text dot marks act in
+	(patches, marks)
 
 end
