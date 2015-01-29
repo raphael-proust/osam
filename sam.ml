@@ -31,6 +31,8 @@ module Text : sig
 
     val get: in_channel -> t
     val put: t -> out_channel -> unit
+	val from_string: string -> t
+	val to_string: t -> string
 end = struct
     type t
     type offset = int
@@ -48,6 +50,8 @@ end = struct
 
     let get _ = failwith "TODO"
     let put _ _ = failwith "TODO"
+	let from_string _ = failwith "TODO"
+	let to_string _ = failwith "TODO"
 
 end
 
@@ -146,10 +150,23 @@ end = struct
     end
 end
 
+module Command : sig
+	(*TODO: allow for return status and asynchronous execution*)
+	type t
+	type status
+	val build: string -> t
+	val run: ?stdin:string -> ?stdout:Buffer.t -> t -> status
+end = struct
+	type t = string
+	type status = unit (*TODO: allow for lwt, functorize Action over Cmd*)
+	let build s = s
+	let run ?stdin ?stdout t =
+		failwith "TODO"
+end
+
 (*TODO: functorise over marks and text, provide both UTF8 and ASCII text*)
 module Actions : sig
 
-    type syscmd
     type substitutee
     type substitutor
 
@@ -227,13 +244,13 @@ type action =
 
 	(** PipeOut: send the character in the current range into the stdin of the
 	 * given system command. *)
-	| PipeOut of syscmd
+	| PipeOut of Command.t
 	(** PipeIn: replace the characters in the current range by the stdout of
 	 * the given system command. *)
-	| PipeIn of syscmd
+	| PipeIn of Command.t
 	(** Pipe: filter the current range of characters through the given system
 	 * command. *)
-	| Pipe of syscmd
+	| Pipe of Command.t
 
 	(** Sets the given mark to address the current selection. *)
 	| SetMark of Marks.t
@@ -253,7 +270,6 @@ type action =
 
 end = struct
 
-    type syscmd
     type substitutee
     type substitutor
 
@@ -284,9 +300,9 @@ type action =
 	| Delete
 	| Move of addr
 	| Copy of addr
-	| PipeOut of syscmd
-	| PipeIn of syscmd
-	| Pipe of syscmd
+	| PipeOut of Command.t
+	| PipeIn of Command.t
+	| Pipe of Command.t
 	| SetMark of Marks.t
 
 type t =
@@ -361,9 +377,29 @@ let rec action text = function
         [((0, Text.length text) , Text.empty)]
 	| Move a -> failwith "TODO"
 	| Copy a -> failwith "TODO"
-	| PipeOut cmd -> failwith "TODO"
-	| PipeIn cmd -> failwith "TODO"
-	| Pipe cmd -> failwith "TODO"
+
+	(*TODO: manage stdout and such *)
+	| PipeOut cmd ->
+		let (_ : Command.status) =
+			Command.run ~stdin:(Text.to_string text) cmd
+		in
+		[]
+	| PipeIn cmd ->
+		let b = Buffer.create 100 in
+		let (_ : Command.status) = Command.run ~stdout:b cmd in
+		let res = Text.from_string (Buffer.contents b) in
+		[(0, Text.length text), res]
+	| Pipe cmd ->
+		let b = Buffer.create 100 in
+		let (_ : Command.status) =
+			Command.run
+				~stdin:(Text.to_string text)
+				~stdout:b
+				cmd
+		in
+		let res = Text.from_string (Buffer.contents b) in
+		[(0, Text.length text), res]
+
 	| SetMark m -> failwith "TODO"
 
 let run ~text ~dot ~marks (addr, act) =
