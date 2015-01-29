@@ -4,7 +4,7 @@ module Codepoint : sig
     val width: t -> int (* returns between 1 and 6 *)
     val of_char: char -> t
     val of_int: int -> t
-    (*TODO: properties (lowercase, uppercase, scripts, &c.)*)
+    (*TODO: properties (lowercase, uppercase, scripts, &c.) using uucp*)
 end = struct
     type t
     let width _ = failwith "TODO"
@@ -15,10 +15,12 @@ end
 module Text : sig
     type t
     type offset = int
+
+    (* a cursor describes a range of characters (like the dot in acme) *)
     type cursor = offset * offset
-    type patch = (cursor * t) option
 
     val shift: cursor -> offset -> cursor
+    val neg: cursor -> cursor
 
     val nth: offset -> t -> Codepoint.t
     val sub: t -> cursor -> t
@@ -27,18 +29,15 @@ module Text : sig
     val empty: t
     val cat: t list -> t
 
-    val apply: t -> patch -> t
-    val compose: patch list -> patch
-
     val get: in_channel -> t
     val put: t -> out_channel -> unit
 end = struct
     type t
     type offset = int
     type cursor = offset * offset
-    type patch = (cursor * t) option
 
     let shift _ _ = failwith "TODO"
+    let neg _ = failwith "TODO"
 
     let nth _ _ = failwith "TODO"
     let sub _ _ = failwith "TODO"
@@ -47,13 +46,58 @@ end = struct
     let empty = failwith "TODO"
     let cat _ = failwith "TODO"
 
-    let apply _ _ = failwith "TODO"
-    let compose _ = failwith "TODO"
-
     let get _ = failwith "TODO"
     let put _ _ = failwith "TODO"
 
 end
+
+(*TODO: functorise by Text *)
+module Patch : sig
+
+    type t = (Text.cursor * Text.t)
+    val apply: Text.t -> t -> Text.t
+    val shift: t -> Text.offset -> t
+
+    (*intertwines apply and shift correctly*)
+    val apply_batch: t list -> Text.t -> Text.t
+
+end = struct
+
+    type t = (Text.cursor * Text.t)
+    let apply _ _ = failwith "TODO"
+    let shift (c,t) o = (Text.shift c o, t)
+
+    let apply_batch cs text =
+        (* We first sort the patches by initial offset so it is easy to detect
+         * conflicts and keep track of relative positions. *)
+        let cs = List.sort (fun (s1,_) (s2,_) -> compare s1 s2) cs in
+        let (text, _, _) =
+            List.fold_left
+                (* text is the text as is being modified,
+                 * last is the highest offset affected,
+                 * corr is the correction to apply to patches
+                 *)
+                (fun (text, last, corr) p ->
+                    let p = shift p corr in
+                    let (s,e), t = p in
+                    if s < last then
+                        (*TODO: we probably want a first pass on the list with a
+                         * caller-provided merge function. In the simplest case,
+                         * merge raises an exception that the caller catches. *)
+                        failwith "TODO: error management, the patches collide"
+                    else
+                        let t = apply t p in
+                        let corr = corr - (e - s) + Text.length t in
+                        (t, e, corr)
+                )
+                (text, 0, 0)
+                cs
+        in
+        text
+
+
+end
+
 
 module Marks : sig
     (*TODO: make several Marks possible (especially using more than unit) *)
@@ -196,6 +240,17 @@ type action =
 
 	(* TODO: some form of yank and paste? *)
     type t = addr * action
+
+    val run:
+        (* Pass the text to be edited *)
+        text:Text.t ->
+        (* Some context *)
+        dot:Text.cursor -> marks:Marks.env ->
+        (* And the action to be executed *)
+        t ->
+        (* We return a patch rather than modifying the text *)
+        Patch.t list
+
 end = struct
 
     type syscmd
@@ -237,21 +292,6 @@ type action =
 type t =
 	addr * action
 
-end
-
-module Driver : sig
-    val run:
-        (* Pass the text to be edited *)
-        text:Text.t ->
-        (* Some context *)
-        dot:Text.cursor -> marks:Marks.env ->
-        (* And the action to be executed *)
-        Actions.t ->
-        (* We return a patch rather than modifying the text *)
-        Text.patch
-end = struct
-
-    open Actions
 
 let rec address text dot marks = function
 	| Dot -> dot
@@ -277,42 +317,48 @@ let rec action text = function
         (*NOTE: we use map (not fold) which means that SetMark doesn't affect
          * the other actions. Currently, SetMark is nop, need fixing. *)
         List.map (action text) acts
-        |> Text.compose
+        |> List.flatten
 	| For (re, act) ->
         let dfa = Regexp.compile re in
         Regexp.all_matches dfa text
-        |> List.map (Text.sub text)
-        |> List.map (fun t -> action t act)
-        |> Text.compose
+        |> List.map (fun ((start, _) as cursor) ->
+            let text = Text.sub text cursor in
+            let patches = action text act in
+            List.map (fun p -> Patch.shift p (~- start)) patches
+            )
+        |> List.flatten
 	| Rof (re, act) ->
         let dfa = Regexp.compile re in
         Regexp.all_matches dfa text
         |> (fun _ -> failwith "TODO: inverse all the cursors")
-        |> List.map (Text.sub text)
-        |> List.map (fun t -> action t act)
-        |> Text.compose
+        |> List.map (fun ((start, _) as cursor) ->
+            let text = Text.sub text cursor in
+            let patches = action text act in
+            List.map (fun p -> Patch.shift p (~- start)) patches
+            )
+        |> List.flatten
 	| If (re, act) ->
         let dfa = Regexp.compile re in
         if Regexp.has_match dfa text then
             action text act
         else
-            None
+            []
 	| Ifnot (re, act) ->
         let dfa = Regexp.compile re in
         if Regexp.has_match dfa text then
-            None
+            []
         else
             action text act
 	| Append t ->
         let e = Text.length text in
-        Some ((e,e), t)
+        [((e,e), t)]
 	| Insert t ->
-        Some ((0,0), t)
+        [((0,0), t)]
 	| Replace t ->
-        Some ((0, Text.length text) , t)
+        [((0, Text.length text) , t)]
 	| Substitute (se, sr) -> failwith "TODO"
 	| Delete ->
-        Some ((0, Text.length text) , Text.empty)
+        [((0, Text.length text) , Text.empty)]
 	| Move a -> failwith "TODO"
 	| Copy a -> failwith "TODO"
 	| PipeOut cmd -> failwith "TODO"
@@ -321,8 +367,8 @@ let rec action text = function
 	| SetMark m -> failwith "TODO"
 
 let run ~text ~dot ~marks (addr, act) =
-    let dot = address text dot marks addr in
-    action (Text.sub text dot) act
-
+    let (start, _) as dot = address text dot marks addr in
+    let patches = action (Text.sub text dot) act in
+    List.map (fun p -> Patch.shift p (~- start)) patches
 
 end
