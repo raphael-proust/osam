@@ -382,10 +382,12 @@ let rec action text dot marks = function
 	| Delete ->
         ([((0, Text.length text) , Text.empty)], marks)
 
-	(* FIXME: this cannot be implemented right now because we don't have a
-	 * view of the whole text (to resolve the addresses on). *)
-	| Move a -> failwith "TODO"
-	| Copy a -> failwith "TODO"
+	| Move a ->
+		let target = address text dot marks a in
+		([(target, Text.sub text dot); (dot, Text.empty)], marks)
+	| Copy a ->
+		let target = address text dot marks a in
+		([target, Text.sub text dot], marks)
 
 	(*TODO: manage stdout and such *)
 	| PipeOut cmd ->
