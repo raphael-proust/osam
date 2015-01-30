@@ -1,16 +1,24 @@
 
 module Codepoint : sig
 	type t
+	exception Invalid
+
 	val width: t -> int (* returns between 1 and 6 *)
 	val of_char: char -> t
 	val of_int: int -> t
 
 	(* [read_in_string s o] evaluates to the character stored in [s] at (byte)
-	 * offset [o] and the (byte) offset of the next character. *)
+	 * offset [o] and the (byte) offset of the next character. Might raise
+	 * [Invalid]. *)
 	val read_in_string: string -> int -> (t * int)
+
 	(*TODO: properties (lowercase, uppercase, scripts, &c.) using uucp*)
+
+
 end = struct
 	type t = int
+	exception Invalid
+
 	let width c =
 		if 0x0 <= c && c <= 0x7F then
 			1
@@ -30,6 +38,7 @@ end = struct
 	let of_int i = i
 
 	let read_in_string s o =
+		(* TODO: raise invalid instead of asserting *)
 		(* assumes o is the offset of the first byte of a codepoint *)
 		let c = Char.code (String.get s o) in
 		if 0b0 <= c && c <= 0b01111111 then
@@ -150,9 +159,9 @@ module Text : sig
 	val from_string: string -> t option
 	val to_string: t -> string
 
-	(* [nth i t] is the ith codepoint of [t]. If [i] is bigger or equal to
+	(* [nth t i] is the ith codepoint of [t]. If [i] is bigger or equal to
 	 * [length t] or lower than [0] then it fails. *)
-	val nth: int -> t -> Codepoint.t
+	val nth: t -> int -> Codepoint.t
 
 	(* [sub t cursor] is the text included in the range described by the
 	 * cursor. *)
@@ -166,15 +175,93 @@ module Text : sig
 	val cat: t list -> t
 
 end = struct
-	type t
-	let length _ = failwith "TODO"
 
-	let empty = failwith "TODO"
-	let from_string _ = failwith "TODO"
-	let to_string _ = failwith "TODO"
+	(* we represent text as ropes of unicode-valid chunks of strings of bytes.
+	 * A chunck is a pointer to a string with two byte offsets to delimit the
+	 * begining and ending. We attach a little bit more information such as
+	 * length to speed up some operations. *)
 
-	let nth _ _ = failwith "TODO"
-	let sub _ _ = failwith "TODO"
+	(* TODO: use reference counting on the base strings to avoid having one
+	 * small sub-string hoging up the memory of the whole string. *)
+
+	type chunk = {
+		c_content: string; (* only allow veted strings in there *)
+		c_start: int;
+		c_bytes: int;
+		c_codes: int;
+	}
+	type split = {
+		s_content: t list;
+		s_bytes: int;
+		s_codes: int;
+	}
+	and t =
+		| Leaf of chunk
+		| Split of split
+
+	let length = function
+		| Leaf {c_codes=l}
+		| Split {s_codes=l} -> l
+
+	let empty = Leaf {c_content=""; c_start=0; c_bytes=0; c_codes=0;}
+	let from_string s =
+		try
+			let c_codes = failwith "TODO" in
+			let c_bytes = String.length s in
+			Some (Leaf {c_content=s; c_start=0; c_bytes; c_codes;})
+		with Codepoint.Invalid -> None
+	let rec to_string buff off = function
+		| Leaf {c_content; c_start; c_bytes; c_codes;} ->
+			Buffer.add_substring buff c_content c_start c_bytes;
+			off + c_bytes
+		| Split {s_content} ->
+			List.fold_left (to_string buff) off s_content
+	let to_string = function
+		| Leaf {c_content; c_start; c_bytes;} ->
+			if c_start=0 && c_bytes = String.length c_content then
+				c_content
+			else
+				(*TODO? Can that fail?*)
+				String.sub c_content c_start c_bytes
+		| Split {s_bytes} as t  ->
+			let b = Buffer.create s_bytes in
+			let _:int = to_string b 0 t in
+			Buffer.contents b
+
+
+	let rec nth t o =
+		if o < 0 || length t < o then
+			failwith "TODO: error management"
+		else match t with
+		| Leaf {c_content} ->
+			failwith "TODO: make a Chunk module with nth, length, &c."
+		| Split {s_content} -> match s_content with
+		| [] -> failwith "TODO: error management"
+		| t::ts ->
+			let l = length t in
+			if o < l then
+				nth t o
+			else
+				failwith "TODO"
+
+	let rec sub t c =
+		if Cursor.start c < 0 || Cursor.end_ c > length t then
+			failwith "TODO: error management"
+		else match t with
+		| Leaf {c_content} ->
+			failwith "TODO: use the Chunk module"
+		| Split {s_content} -> match s_content with
+		| [] -> failwith "TODO: error management"
+		| t::ts ->
+			if Cursor.end_ c < length t then
+				sub t c
+			else if length t < Cursor.start c then
+				failwith "TODO"
+			else
+				(*TODO: make a base string and build a chunck*)
+				failwith "TODO: this is harder"
+
+
 	let fold _ _ _ = failwith "TODO"
 	let cat _ = failwith "TODO"
 
