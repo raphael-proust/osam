@@ -4,12 +4,98 @@ module Codepoint : sig
 	val width: t -> int (* returns between 1 and 6 *)
 	val of_char: char -> t
 	val of_int: int -> t
+
+	(* [read_in_string s o] evaluates to the character stored in [s] at (byte)
+	 * offset [o] and the (byte) offset of the next character. *)
+	val read_in_string: string -> int -> (t * int)
 	(*TODO: properties (lowercase, uppercase, scripts, &c.) using uucp*)
 end = struct
-	type t
-	let width _ = failwith "TODO"
-	let of_char _ = failwith "TODO"
-	let of_int _ = failwith "TODO"
+	type t = int
+	let width c =
+		if 0x0 <= c && c <= 0x7F then
+			1
+		else if 0x80 <= c && c <= 0x7FF then
+			2
+		else if 0x800 <= c && c <= 0xFFFF then
+			3
+		else if 0x10000 <= c && c <= 0x1FFFFF then
+			4
+		else if 0x200000 <= c && c <= 0x3FFFFFF then
+			5
+		else if 0x4000000 <= c && c <= 0x7FFFFFFF then
+			6
+		else
+			failwith "TODO: error mgmt"
+	let of_char c = Char.code c (*ASCII is included as is in UTF8*)
+	let of_int i = i
+
+	let read_in_string s o =
+		(* assumes o is the offset of the first byte of a codepoint *)
+		let c = Char.code (String.get s o) in
+		if 0b0 <= c && c <= 0b01111111 then
+			(c, o+1)
+		else if 0b11000000 <= c && c <= 0b11011111 then
+			let c2 = Char.code (String.get s (o+1)) in
+			assert (0b10000000 <= c2 && c2 <= 0b10111111);
+			(((c land 0b11111) lsl 5) lor (c2 land 0b111111),
+			o+2)
+		else if 0b11100000 <= c && c <= 0b11101111 then
+			let c2 = Char.code (String.get s (o+1)) in
+			let c3 = Char.code (String.get s (o+2)) in
+			assert (0b10000000 <= c2 && c2 <= 0b10111111);
+			assert (0b10000000 <= c3 && c3 <= 0b10111111);
+			(((c land 0b11111) lsl 10)
+			lor ((c2 land 0b111111) lsl 5)
+			lor (c3 land 0b111111),
+			o+3)
+		else if 0b11110000 <= c && c <= 0b11110111 then
+			let c2 = Char.code (String.get s (o+1)) in
+			let c3 = Char.code (String.get s (o+2)) in
+			let c4 = Char.code (String.get s (o+3)) in
+			assert (0b10000000 <= c2 && c2 <= 0b10111111);
+			assert (0b10000000 <= c3 && c3 <= 0b10111111);
+			assert (0b10000000 <= c4 && c4 <= 0b10111111);
+			(((c land 0b11111) lsl 15)
+			lor ((c2 land 0b111111) lsl 10)
+			lor ((c3 land 0b111111) lsl 5)
+			lor (c4 land 0b111111),
+			o+4)
+		else if 0b11111000 <= c && c <= 0b11111011 then
+			let c2 = Char.code (String.get s (o+1)) in
+			let c3 = Char.code (String.get s (o+2)) in
+			let c4 = Char.code (String.get s (o+3)) in
+			let c5 = Char.code (String.get s (o+4)) in
+			assert (0b10000000 <= c2 && c2 <= 0b10111111);
+			assert (0b10000000 <= c3 && c3 <= 0b10111111);
+			assert (0b10000000 <= c4 && c4 <= 0b10111111);
+			assert (0b10000000 <= c5 && c5 <= 0b10111111);
+			(((c land 0b11111) lsl 20)
+			lor ((c2 land 0b111111) lsl 15)
+			lor ((c3 land 0b111111) lsl 10)
+			lor ((c4 land 0b111111) lsl 5)
+			lor (c5 land 0b111111),
+			o+5)
+		else if 0b11111100 <= c && c <= 0b11111101 then
+			let c2 = Char.code (String.get s (o+1)) in
+			let c3 = Char.code (String.get s (o+2)) in
+			let c4 = Char.code (String.get s (o+3)) in
+			let c5 = Char.code (String.get s (o+4)) in
+			let c6 = Char.code (String.get s (o+5)) in
+			assert (0b10000000 <= c2 && c2 <= 0b10111111);
+			assert (0b10000000 <= c3 && c3 <= 0b10111111);
+			assert (0b10000000 <= c4 && c4 <= 0b10111111);
+			assert (0b10000000 <= c5 && c5 <= 0b10111111);
+			assert (0b10000000 <= c6 && c6 <= 0b10111111);
+			(((c land 0b11111) lsl 25)
+			lor ((c2 land 0b111111) lsl 15)
+			lor ((c3 land 0b111111) lsl 15)
+			lor ((c4 land 0b111111) lsl 10)
+			lor ((c5 land 0b111111) lsl 5)
+			lor (c6 land 0b111111),
+			o+6)
+		else
+			failwith "TODO error management"
+
 end
 
 module Cursor : sig
