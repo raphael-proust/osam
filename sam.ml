@@ -16,9 +16,14 @@ module Cursor : sig
 	(* a cursor describes a range of characters (like the dot in acme) *)
 	type t = int * int
 	val shift: t -> int -> t
+	val overlap: t -> t -> bool
 end = struct
 	type t = int * int
 	let shift (s,e) o = (s+o, e+o)
+	let overlap (s1, e1) (s2, e2) =
+		(*TODO? unit tests?*)
+		(s1 < s2 && s2 < e1)
+		|| (s2 < s1 && s1 < e2)
 end
 
 module Text : sig
@@ -56,43 +61,65 @@ module Patch : sig
 	type t = (Cursor.t * Text.t)
 	val apply: Text.t -> t -> Text.t
 	val shift: t -> int -> t
+	exception Conflict
 
 	(*intertwines apply and shift correctly*)
-	val apply_batch: t list -> Text.t -> Text.t
+	val apply_batch: ?merge:(t -> t -> t) -> t list -> Text.t -> Text.t
 
 end = struct
 
 	type t = (Cursor.t * Text.t)
 	let apply _ _ = failwith "TODO"
 	let shift (c,t) o = (Cursor.shift c o, t)
+	let conflict (c1,_) (c2, _) = Cursor.overlap c1 c2
+	exception Conflict
 
-	let apply_batch cs text =
-		(* We first sort the patches by initial offset so it is easy to detect
-		 * conflicts and keep track of relative positions. *)
-		let cs = List.sort (fun (s1,_) (s2,_) -> compare s1 s2) cs in
-		let (text, _, _) =
-			List.fold_left
-				(* text is the text as is being modified,
-				 * last is the highest offset affected,
-				 * corr is the correction to apply to patches
-				 *)
-				(fun (text, last, corr) p ->
-					let p = shift p corr in
-					let (s,e), t = p in
-					if s < last then
-						(*TODO: we probably want a first pass on the list with a
-						 * caller-provided merge function. In the simplest case,
-						 * merge raises an exception that the caller catches. *)
-						failwith "TODO: error management, the patches collide"
-					else
-						let t = apply t p in
-						let corr = corr - (e - s) + Text.length t in
-						(t, e, corr)
-				)
-				(text, 0, 0)
-				cs
-		in
-		text
+	let apply_batch ?(merge = (fun _ _ -> raise Conflict)) cs text =
+		match cs with
+		| [] -> text
+		| _ :: _ as cs ->
+			(* We first sort the patches by initial offset so it is easy to
+			 * detect conflicts and keep track of relative positions. *)
+			let cs =
+				let cs = List.sort (fun (s1,_) (s2,_) -> compare s1 s2) cs in
+				(*These can't fail becuase sort does not remove any element.*)
+				let c = List.hd cs in
+				let cs = List.tl cs in
+				let (cs_rev, last) = List.fold_left
+					(fun (cs_rev, last) c ->
+						if conflict last c then
+							(cs_rev, merge last c)
+						else
+							(last :: cs_rev, c)
+					)
+					([], c)
+					cs
+				in
+				List.rev (last :: cs_rev)
+			in
+			let (text, _, _) =
+				List.fold_left
+					(* text is the text as is being modified,
+					 * last is the highest offset affected,
+					 * offset is the correction to apply to patches
+					 *)
+					(fun (text, last, offset) p ->
+						let p = shift p offset in
+						let (s,e), t = p in
+						if s < last then
+							(*TODO: we probably want a first pass on the list with a
+							 * caller-provided merge function. In the simplest case,
+							 * merge raises an exception that the caller catches. *)
+							failwith "TODO: error management, the patches collide"
+						else
+							let t = apply t p in
+							let offset = offset - (e - s) + Text.length t in
+							(t, e, offset)
+					)
+					(text, 0, 0)
+					cs
+			in
+			text
 
 
 end
