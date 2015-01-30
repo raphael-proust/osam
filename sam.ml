@@ -346,39 +346,19 @@ let rec action text dot marks = function
 		in
 		(List.flatten patchess, marks)
 	| For (re, act) ->
-		let dfa = Regexp.compile re in
-		let dots = Regexp.all_matches dfa text dot in
-		let (patchess, marks) =
-			List.fold_left (fun (patchess, marks) dot ->
-				let (patches, marks) = action text dot marks act in
-				(patches :: patchess, marks)
-				)
-				([], marks)
-				dots
-		in
-		(List.flatten patchess, marks)
+		let dots = Regexp.(all_matches (compile re) text dot) in
+		fold_over_dots text dots marks
 	| Rof (re, act) ->
-		let dfa = Regexp.compile re in
-		let dots = Regexp.all_matches dfa text dot in
+		let dots = Regexp.(all_matches (compile re) text dot) in
 		let dots = reverse_dots dot dots in
-		let (patchess, marks) =
-			List.fold_left (fun (patchess, marks) dot ->
-				let (patches, marks) = action text dot marks act in
-				(patches :: patchess, marks)
-				)
-				([], marks)
-				dots
-		in
-		(List.flatten patchess, marks)
+		fold_over_dots text dots marks
 	| If (re, act) ->
-		let dfa = Regexp.compile re in
-		if Regexp.has_match dfa text dot then
+		if Regexp.(has_match (compile re) text dot) then
 			action text dot marks act
 		else
 			([], marks)
 	| Ifnot (re, act) ->
-		let dfa = Regexp.compile re in
-		if Regexp.has_match dfa text dot then
+		if Regexp.(has_match (compile re) text dot) then
 			([], marks)
 		else
 			action text dot marks act
@@ -424,6 +404,17 @@ let rec action text dot marks = function
 
 	| SetMark m ->
 		([], Marks.put marks m dot)
+
+and fold_over_dots text dots marks act =
+	let (patchess, marks) =
+		List.fold_left (fun (patchess, marks) dot ->
+			let (patches, marks) = action text dot marks act in
+			(patches :: patchess, marks)
+			)
+			([], marks)
+			dots
+	in
+	(List.flatten patchess, marks)
 
 let run ~text ~dot ~marks addr act =
 	let (start, _) as dot = address text dot marks addr in
