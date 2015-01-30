@@ -201,18 +201,20 @@ type action =
 	 * there are none. *)
 	| Dispatch of action list
 
-	(** For: execute the action for each of the matches of the Regexp.nfa in the
-	 * current range. Actions are executed with the range set to the Regexp.nfa
+	(** For: execute the action for each of the matches of the regexp in the
+	 * current range. Actions are executed with the range set to the regexp
 	 * match. *)
 	| For of Regexp.nfa * action
 	(** Rof: execute the action for each of the gap between the matches of the
-	 * Regexp.nfa in the current range. *)
+	 * regexp in the current range. The gaps include the selection between
+	 * the start of the dot and the first match as well as between the last
+	 * match and the end of the dot -- even if these ranges are empty. *)
 	| Rof of Regexp.nfa * action
 	(** If: execute the action if there is a substring that matches the
-	 * Regexp.nfa in the current range. *)
+	 * regexp in the current range. *)
 	| If of Regexp.nfa * action
 	(** Ifnot: execute the action if there is *no* substring that matches the
-	 * Regexp.nfa in the current range. *)
+	 * regexp in the current range. *)
 	| Ifnot of Regexp.nfa * action
 
 	(** Append: add text at the end of the current range. *)
@@ -316,6 +318,20 @@ let rec address text dot marks = function
 	| ForwardRe re -> failwith "TODO"
 	| BackwardRe re -> failwith "TODO"
 
+let reverse_dots (s,e) dots =
+	let (tods, next_s) =
+		List.fold_left
+			(fun (tods, next_s) (s,e) ->
+				assert (next_s <= s);
+				((next_s, s) :: tods, e)
+			)
+			([], s)
+			dots
+	in
+	assert (next_s <= e);
+	let tods = (next_s, e) :: tods in
+	List.rev tods
+
 (*We don't pass dot because we expect the caller to use Text.sub
  * Will have to be changed to accomodate for Move and Copy. *)
 let rec action text dot marks = function
@@ -344,7 +360,7 @@ let rec action text dot marks = function
 	| Rof (re, act) ->
 		let dfa = Regexp.compile re in
 		let dots = Regexp.all_matches dfa text dot in
-		let dots = ignore dots; failwith "TODO: reverse dots" in
+		let dots = reverse_dots dot dots in
 		let (patchess, marks) =
 			List.fold_left (fun (patchess, marks) dot ->
 				let (patches, marks) = action text dot marks act in
