@@ -100,11 +100,32 @@ end
 
 module Cursor : sig
 	(* a cursor describes a range of characters (like the dot in acme) *)
-	type t = int * int
+	type t
+
+	val mk_relative: start:int -> offset:int -> t
+	val mk_absolute: start:int -> end_:int -> t
+
+	val relative: t -> (int * int)
+	val absolute: t -> (int * int)
+	val start: t -> int
+	val end_: t -> int
+	val length: t -> int
+
 	val shift: t -> int -> t
 	val overlap: t -> t -> bool
 end = struct
+	(*TODO: deal with edge cases: negative lengths, negative positions, &c. *)
 	type t = int * int
+
+	let mk_relative ~start ~offset = (start, start+offset)
+	let mk_absolute ~start ~end_ = (start, end_)
+
+	let relative (start, end_) = (start, end_ - start)
+	let absolute t = t
+	let start (s, _) = s
+	let end_ (_, e) = e
+	let length (s, e) = e - s
+
 	let shift (s,e) o = (s+o, e+o)
 	let overlap (s1, e1) (s2, e2) =
 		(*TODO? unit tests?*)
@@ -113,16 +134,35 @@ end = struct
 end
 
 module Text : sig
+	(* In Text, all the exposed offsets (e.g., in length, sub, &c.) even if
+	 * internally it might use byte offsets. *)
+
 	type t
+
+	(* [legnth t] is the number of codepoints in [t]. *)
 	val length: t -> int
 
+	(* [empty] is a text with 0 codepoints inside. *)
 	val empty: t
-	val from_string: string -> t
+
+	(* [from_string s] checks the UTF8 validity of [s] and returns text if it
+	 * is valid. [to_string t] is the inverse. *)
+	val from_string: string -> t option
 	val to_string: t -> string
 
+	(* [nth i t] is the ith codepoint of [t]. If [i] is bigger or equal to
+	 * [length t] or lower than [0] then it fails. *)
 	val nth: int -> t -> Codepoint.t
+
+	(* [sub t cursor] is the text included in the range described by the
+	 * cursor. *)
 	val sub: t -> Cursor.t -> t
+
+	(* [fold t a f] folds over all the codepoints of [t] using [f] with the
+	 * initial input [a]. *)
 	val fold: t -> 'a -> ('a -> Codepoint.t -> 'a) -> 'a
+
+	(* [cat ts] is the concatenation of all the texts in [ts]. *)
 	val cat: t list -> t
 
 end = struct
@@ -156,6 +196,7 @@ end = struct
 
 	type t = (Cursor.t * Text.t)
 	let apply _ _ = failwith "TODO"
+	let effect (c, t) = Text.length t - Cursor.length c
 	let shift (c,t) o = (Cursor.shift c o, t)
 	let conflict (c1,_) (c2, _) = Cursor.overlap c1 c2
 	exception Conflict
@@ -189,18 +230,11 @@ end = struct
 					 * last is the highest offset affected,
 					 * offset is the correction to apply to patches
 					 *)
-					(fun (text, last, offset) p ->
+					(fun (text, last, offset) ((c, _) as p) ->
 						let p = shift p offset in
-						let (s,e), t = p in
-						if s < last then
-							(*TODO: we probably want a first pass on the list with a
-							 * caller-provided merge function. In the simplest case,
-							 * merge raises an exception that the caller catches. *)
-							failwith "TODO: error management, the patches collide"
-						else
-							let t = apply t p in
-							let offset = offset - (e - s) + Text.length t in
-							(t, e, offset)
+						let text = apply text p in
+						let offset = offset + effect p in
+						(text, Cursor.end_ c, offset)
 					)
 					(text, 0, 0)
 					cs
@@ -418,7 +452,7 @@ type action =
 
 let rec address text dot marks = function
 	| Dot -> dot
-	| Offset i -> (i, i)
+	| Offset i -> Cursor.mk_relative ~start:i ~offset:0
 	| Line _ -> failwith "TODO"
 	| LastLine -> failwith "TODO"
 	| Mark m -> begin
@@ -438,23 +472,27 @@ let rec address text dot marks = function
  * regexp style (plan9, vim, perl, &c.)). *)
 let parse _ = failwith "TODO"
 
-let reverse_dots (s,e) dots =
+let reverse_dots range dots =
+	let s = Cursor.start range in
+	let e = Cursor.end_ range in
 	let (tods, next_s) =
 		List.fold_left
-			(fun (tods, next_s) (s,e) ->
+			(fun (tods, next_s) dot ->
+				let s = Cursor.start dot in
+				let e = Cursor.end_ dot in
 				assert (next_s <= s);
-				((next_s, s) :: tods, e)
+				(Cursor.mk_absolute next_s s :: tods, e)
 			)
 			([], s)
 			dots
 	in
 	assert (next_s <= e);
-	let tods = (next_s, e) :: tods in
+	let tods = Cursor.mk_absolute next_s  e :: tods in
 	List.rev tods
 
 (*We don't pass dot because we expect the caller to use Text.sub
  * Will have to be changed to accomodate for Move and Copy. *)
-let rec action text dot marks = function
+let rec action text (dot:Cursor.t) marks = function
 	| Dispatch acts ->
 		let (patchess, marks) =
 			List.fold_left (fun (patchess, marks) act ->
@@ -482,16 +520,18 @@ let rec action text dot marks = function
 			([], marks)
 		else
 			action text dot marks act
+
 	| Append t ->
-		let e = Text.length text in
-		([((e,e), t)], marks)
+		let e = Cursor.end_ dot in
+		([(Cursor.mk_absolute e e, t)], marks)
 	| Insert t ->
-		([((0,0), t)], marks)
+		let s = Cursor.start dot in
+		([(Cursor.mk_absolute s s, t)], marks)
 	| Replace t ->
-		([((0, Text.length text) , t)], marks)
+		([(dot , t)], marks)
 	| Substitute (se, sr) -> failwith "TODO"
 	| Delete ->
-		([((0, Text.length text) , Text.empty)], marks)
+		([(dot , Text.empty)], marks)
 
 	| Move a ->
 		let target = address text dot marks a in
@@ -509,8 +549,11 @@ let rec action text dot marks = function
 	| PipeIn cmd ->
 		let b = Buffer.create 100 in
 		let (_ : Command.status) = Command.run ~stdout:b cmd in
-		let res = Text.from_string (Buffer.contents b) in
-		([(0, Text.length text), res], marks)
+		let res = match Text.from_string (Buffer.contents b) with
+			| None -> Text.empty
+			| Some t -> t
+		in
+		([dot, res], marks)
 	| Pipe cmd ->
 		let b = Buffer.create 100 in
 		let (_ : Command.status) =
@@ -519,8 +562,11 @@ let rec action text dot marks = function
 				~stdout:b
 				cmd
 		in
-		let res = Text.from_string (Buffer.contents b) in
-		([(0, Text.length text), res], marks)
+		let res = match Text.from_string (Buffer.contents b) with
+			| None -> Text.empty
+			| Some t -> t
+		in
+		([dot, res], marks)
 
 	| SetMark m ->
 		([], Marks.put marks m dot)
@@ -537,7 +583,7 @@ and fold_over_dots text dots marks act =
 	(List.flatten patchess, marks)
 
 let run ~text ~dot ~marks addr act =
-	let (start, _) as dot = address text dot marks addr in
+	let dot = address text dot marks addr in
 	let (patches, marks) = action text dot marks act in
 	(patches, marks)
 
