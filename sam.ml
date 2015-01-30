@@ -347,11 +347,11 @@ let rec action text dot marks = function
 		(List.flatten patchess, marks)
 	| For (re, act) ->
 		let dots = Regexp.(all_matches (compile re) text dot) in
-		fold_over_dots text dots marks
+		fold_over_dots text dots marks act
 	| Rof (re, act) ->
 		let dots = Regexp.(all_matches (compile re) text dot) in
 		let dots = reverse_dots dot dots in
-		fold_over_dots text dots marks
+		fold_over_dots text dots marks act
 	| If (re, act) ->
 		if Regexp.(has_match (compile re) text dot) then
 			action text dot marks act
