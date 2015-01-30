@@ -278,6 +278,8 @@ type action =
 	(** Sets the given mark to address the current selection. *)
 	| SetMark of Marks.t
 
+val parse: string -> addr * action
+
 val run:
 	(* Pass the text to be edited *)
 	text:Text.t ->
@@ -344,6 +346,11 @@ let rec address text dot marks = function
 	| Semicolon (a1, a2) -> failwith "TODO"
 	| ForwardRe re -> failwith "TODO"
 	| BackwardRe re -> failwith "TODO"
+
+(* TODO: we need to be able to parse regexps to parse actions. Thus we need to
+ * functorise over Regexp (which gives the opportunity to support several
+ * regexp style (plan9, vim, perl, &c.)). *)
+let parse _ = failwith "TODO"
 
 let reverse_dots (s,e) dots =
 	let (tods, next_s) =
