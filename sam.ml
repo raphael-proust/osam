@@ -114,6 +114,8 @@ module Cursor : sig
 	val mk_relative: start:int -> offset:int -> t
 	val mk_absolute: start:int -> end_:int -> t
 
+	val range: t -> t -> t
+
 	val relative: t -> (int * int)
 	val absolute: t -> (int * int)
 	val start: t -> int
@@ -121,13 +123,29 @@ module Cursor : sig
 	val length: t -> int
 
 	val shift: t -> int -> t
+	val shift_end: t -> int -> t
+	(* [extend_start t o] moves the start extremity of the cursor [t] by
+	 * offset [o]. NB: If [o] is negative, the result is larger than [t]. *)
+	val shift_start: t -> int -> t
+
 	val overlap: t -> t -> bool
 end = struct
-	(*TODO: deal with edge cases: negative lengths, negative positions, &c. *)
+	(* INVARIANT: the start (lhs) is lower or equal to the end (rhs). *)
 	type t = int * int
 
-	let mk_relative ~start ~offset = (start, start+offset)
-	let mk_absolute ~start ~end_ = (start, end_)
+	let mk_relative ~start ~offset =
+		if 0 <= offset then
+			(start, start+offset)
+		else
+			(start + offset, start)
+	let mk_absolute ~start ~end_ =
+		if start <= end_ then
+			(start, end_)
+		else
+			(end_, start)
+
+	let range (s1,e1) (s2,e2) =
+		(min s1 s2, max e1 e2)
 
 	let relative (start, end_) = (start, end_ - start)
 	let absolute t = t
@@ -135,11 +153,23 @@ end = struct
 	let end_ (_, e) = e
 	let length (s, e) = e - s
 
+	(*Note: we manually inline the constructors here. Be careful about the
+	 * INVARIANT. *)
 	let shift (s,e) o = (s+o, e+o)
+	let shift_end (s,e) o =
+		if s <= e+o then
+			(s, e+o)
+		else
+			(e+o, s)
+	let shift_start (s,e) o =
+		if s+o <= e then
+			(s+o, e)
+		else
+			(e, s+o)
+
 	let overlap (s1, e1) (s2, e2) =
-		(*TODO? unit tests?*)
-		(s1 < s2 && s2 < e1)
-		|| (s2 < s1 && s1 < e2)
+		(s1 <= s2 && s2 < e1)
+		|| (s2 <= s1 && s1 < e2)
 end
 
 module Text : sig
@@ -504,6 +534,16 @@ end = struct
 type substitutee
 type substitutor
 
+(*TODO: find less ad-hoc more abstract constructs for address.
+ * Absolute: Offset, Dot, Mark
+ * Relative: Start/End of current resolution, Continue from current
+ *   resolution, Set the dot to current resolution and continue with current
+ *   resolution, &c.
+ *
+ * Provide a translation from the classic sam/acme constructors and the more
+ * abstract ones.
+ *)
+
 (** Addresses: addresses describe ranges in the document *)
 type addr =
 	| Dot
@@ -537,7 +577,16 @@ type action =
 	| SetMark of Marks.t
 
 
-let rec address text dot marks = function
+let rec address text dot marks start reverse = function
+	(* [text] is the text in which we are trying to resolve the address.
+	 * [dot] is the current dot
+	 * [marks] is the mark environment
+	 * [start] is the position relative to which we are resolving the address
+	 * [reverse] is the direction we are searching to
+	 *
+	 * Note that: some address constructors are absolute (and thus ignore
+	 * [start] while other are relative (and use [start]). Also note that
+	 * [dot] and [start] are unrelated. *)
 	| Dot -> dot
 	| Offset i -> Cursor.mk_relative ~start:i ~offset:0
 	| Line _ -> failwith "TODO"
@@ -547,10 +596,20 @@ let rec address text dot marks = function
 		| Some c -> c
 		| None -> failwith "TODO: error management"
 	end
-	| Plus (a1, a2) -> failwith "TODO"
-	| Minus (a1, a2) -> failwith "TODO"
-	| Comma (a1, a2) -> failwith "TODO"
-	| Semicolon (a1, a2) -> failwith "TODO"
+	| Plus (a1, a2) ->
+		let c = address text dot marks start reverse a1 in
+		address text dot marks (Cursor.end_ c) reverse a2
+	| Minus (a1, a2) ->
+		let c = address text dot marks start reverse a1 in
+		address text dot marks (Cursor.start c) (not reverse) a2
+	| Comma (a1, a2) ->
+		let c1 = address text dot marks start reverse a1 in
+		let c2 = address text dot marks start reverse a2 in
+		Cursor.range c1 c2
+	| Semicolon (a1, a2) ->
+		let c1 = address text dot marks start reverse a1 in
+		let c2 = address text c1 marks (Cursor.end_ c1) reverse a2 in
+		Cursor.range c1 c2
 	| ForwardRe re -> failwith "TODO"
 	| BackwardRe re -> failwith "TODO"
 
@@ -621,10 +680,10 @@ let rec action text (dot:Cursor.t) marks = function
 		([(dot , Text.empty)], marks)
 
 	| Move a ->
-		let target = address text dot marks a in
+		let target = address text dot marks (Cursor.start dot) false a in
 		([(target, Text.sub text dot); (dot, Text.empty)], marks)
 	| Copy a ->
-		let target = address text dot marks a in
+		let target = address text dot marks (Cursor.start dot) false a in
 		([target, Text.sub text dot], marks)
 
 	(*TODO: manage stdout and such *)
@@ -670,7 +729,7 @@ and fold_over_dots text dots marks act =
 	(List.flatten patchess, marks)
 
 let run ~text ~dot ~marks addr act =
-	let dot = address text dot marks addr in
+	let dot = address text dot marks 0 false addr in
 	let (patches, marks) = action text dot marks act in
 	(patches, marks)
 
