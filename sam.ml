@@ -211,50 +211,101 @@ end = struct
 	 * begining and ending. We attach a little bit more information such as
 	 * length to speed up some operations. *)
 
+
+	module Chunk = struct
+		type t = {
+			content: string; (*might be shared*)
+			start: int;
+			bytes: int;
+			codes: int;
+		}
+
+		let content {content} = content
+		let start {start} = start
+		let bytes {bytes} = bytes
+		let codes {codes} = codes
+
+		let rec nth s b o =
+			(* [b] is the byte address tracking our scanning
+			 * [o] is the number of codes we want to go through*)
+			if o = 0 then
+				let (c, _) = Codepoint.read_in_string s b in
+				c
+			else
+				let (_, b) = Codepoint.read_in_string s b in
+				nth s b (o - 1)
+		let nth t o =
+			if o < 0 || o < t.codes then
+				failwith "TODO: error management"
+			else
+				nth t.content t.start o
+
+		let rec fold f acc s b o =
+			if o = 0 then
+				let (c, _) = Codepoint.read_in_string s b in
+				f acc c
+			else
+				let (c, b) = Codepoint.read_in_string s b in
+				fold f (f acc c) s b (o - 1)
+		let fold f acc {content; start; codes} =
+			fold f acc content start codes
+
+		let rec iter f s b o =
+			if o = 0 then
+				let (c, _) = Codepoint.read_in_string s b in
+				f c
+			else
+				let (c, b) = Codepoint.read_in_string s b in
+				f c;
+				iter f s b (o - 1)
+		let iter f {content; start; codes} =
+			iter f content start codes
+
+		let sub chunk cursor =
+			failwith "TODO"
+
+	end
+
 	(* TODO: use reference counting on the base strings to avoid having one
 	 * small sub-string hoging up the memory of the whole string. *)
 
-	type chunk = {
-		c_content: string; (* only allow veted strings in there *)
-		c_start: int;
-		c_bytes: int;
-		c_codes: int;
-	}
 	type split = {
-		s_content: t list;
-		s_bytes: int;
-		s_codes: int;
+		content: t list;
+		bytes: int;
+		codes: int;
 	}
 	and t =
-		| Leaf of chunk
+		| Leaf of Chunk.t
 		| Split of split
 
-	let length = function
-		| Leaf {c_codes=l}
-		| Split {s_codes=l} -> l
+	let codes = function
+		| Leaf {Chunk.codes}
+		| Split {codes} -> codes
+	let bytes = function
+		| Leaf {Chunk.bytes}
+		| Split {bytes} -> bytes
 
-	let empty = Leaf {c_content=""; c_start=0; c_bytes=0; c_codes=0;}
+	let length = codes
+
+	let empty = Leaf {Chunk.content=""; start=0; bytes=0; codes=0;}
 	let from_string s =
 		try
-			let c_codes = failwith "TODO" in
-			let c_bytes = String.length s in
-			Some (Leaf {c_content=s; c_start=0; c_bytes; c_codes;})
+			let codes = failwith "TODO" in
+			let bytes = String.length s in
+			Some (Leaf {Chunk.content=s; start=0; bytes; codes;})
 		with Codepoint.Invalid -> None
 	let rec to_string buff off = function
-		| Leaf {c_content; c_start; c_bytes; c_codes;} ->
-			Buffer.add_substring buff c_content c_start c_bytes;
-			off + c_bytes
-		| Split {s_content} ->
-			List.fold_left (to_string buff) off s_content
+		| Leaf {Chunk.content; start; bytes; codes;} ->
+			Buffer.add_substring buff content start bytes;
+			off + bytes
+		| Split {content} ->
+			List.fold_left (to_string buff) off content
 	let to_string = function
-		| Leaf {c_content; c_start; c_bytes;} ->
-			if c_start=0 && c_bytes = String.length c_content then
-				c_content
-			else
-				(*TODO? Can that fail?*)
-				String.sub c_content c_start c_bytes
-		| Split {s_bytes} as t  ->
-			let b = Buffer.create s_bytes in
+		| Leaf {Chunk.content; start; bytes;} ->
+			(*TODO? Can that fail?*)
+			String.sub content start bytes
+		| Split {bytes} as t  ->
+			let b = Buffer.create bytes in
 			let _:int = to_string b 0 t in
 			Buffer.contents b
 
@@ -263,32 +314,44 @@ end = struct
 		if o < 0 || length t < o then
 			failwith "TODO: error management"
 		else match t with
-		| Leaf {c_content} ->
-			failwith "TODO: make a Chunk module with nth, length, &c."
-		| Split {s_content} -> match s_content with
+		| Leaf c ->
+			Chunk.nth c o
+		| Split s -> match s.content with
 		| [] -> failwith "TODO: error management"
 		| t::ts ->
 			let l = length t in
 			if o < l then
 				nth t o
 			else
-				failwith "TODO"
+				let s = {
+					content = ts;
+					codes = s.codes - codes t;
+					bytes = s.bytes - bytes t;
+				}
+				in
+				nth (Split s) (o - codes t)
 
 	let rec sub t c =
 		if Cursor.start c < 0 || Cursor.end_ c > length t then
 			failwith "TODO: error management"
 		else match t with
-		| Leaf {c_content} ->
-			failwith "TODO: use the Chunk module"
-		| Split {s_content} -> match s_content with
+		| Leaf {Chunk.content} ->
+			Chunk.sub t c
+		| Split s -> match s.content with
 		| [] -> failwith "TODO: error management"
 		| t::ts ->
 			if Cursor.end_ c < length t then
 				sub t c
 			else if length t < Cursor.start c then
-				failwith "TODO"
+				let s = {
+					content = ts;
+					codes = s.codes - codes t;
+					bytes = s.bytes - bytes t;
+				}
+				in
+				sub (Split s) (Cursor.shift c (~- (codes t)))
 			else
-				(*TODO: make a base string and build a chunck*)
+				(*TODO: make chunks using the base strings and build a Split*)
 				failwith "TODO: this is harder"
 
 
