@@ -1,3 +1,9 @@
+(*TODO: Here are list of things to imporve once there is a minimal working
+ * version.
+ *
+ * - make more abstract and semantically sound Address constructs
+ * - optimise regexps to work on bytes and allow byte folding
+ *)
 
 module Codepoint : sig
 	type t
@@ -197,9 +203,11 @@ module Text : sig
 	 * cursor. *)
 	val sub: t -> Cursor.t -> t
 
+	(*TODO: let fold take a subpart of the string (so that we can regexp)
+	 * also let fold go backwards (so that we can backwards regexp).*)
 	(* [fold t a f] folds over all the codepoints of [t] using [f] with the
 	 * initial input [a]. *)
-	val fold: t -> 'a -> ('a -> Codepoint.t -> 'a) -> 'a
+	val fold: ('a -> Codepoint.t -> 'a) -> 'a -> t -> 'a
 
 	(* [cat ts] is the concatenation of all the texts in [ts]. *)
 	val cat: t list -> t
@@ -224,6 +232,9 @@ end = struct
 		let start {start} = start
 		let bytes {bytes} = bytes
 		let codes {codes} = codes
+
+		(*TODO? factorise nth, fold, and iter (using local exception for fast
+		 * return?*)
 
 		let rec nth s b o =
 			(* [b] is the byte address tracking our scanning
@@ -355,7 +366,12 @@ end = struct
 				failwith "TODO: this is harder"
 
 
-	let fold _ _ _ = failwith "TODO"
+	let rec fold f acc = function
+		| Leaf c ->
+			Chunk.fold f acc c
+		| Split {content} ->
+			List.fold_left (fold f) acc content
+
 	let cat _ = failwith "TODO"
 
 
