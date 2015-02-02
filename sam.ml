@@ -383,6 +383,7 @@ module Regexp : sig
 	val compile: nfa -> dfa
 	val has_match: dfa -> Text.t -> Cursor.t -> bool
 	val next_match: dfa -> Text.t -> Cursor.t -> Cursor.t option
+	val prev_match: dfa -> Text.t -> Cursor.t -> Cursor.t option
 	val all_matches: dfa -> Text.t -> Cursor.t -> Cursor.t list
 	module DSL: sig
 		val point: Codepoint.t -> nfa
@@ -398,6 +399,7 @@ end = struct
 	let compile _ = failwith "TODO"
 	let has_match _ _ _ = failwith "TODO"
 	let next_match _ _ _ = failwith "TODO"
+	let prev_match _ _ _ = failwith "TODO"
 	let all_matches _ _ _ = failwith "TODO"
 	module DSL = struct
 		let point _ = failwith "TODO"
@@ -610,8 +612,18 @@ let rec address text dot marks start reverse = function
 		let c1 = address text dot marks start reverse a1 in
 		let c2 = address text c1 marks (Cursor.end_ c1) reverse a2 in
 		Cursor.range c1 c2
-	| ForwardRe re -> failwith "TODO"
-	| BackwardRe re -> failwith "TODO"
+	| ForwardRe re -> begin
+		let dfa = Regexp.compile re in
+		match Regexp.next_match dfa text (Cursor.mk_absolute start start) with
+		| None -> failwith "TODO: error mgmt"
+		| Some c -> c
+	end
+	| BackwardRe re -> begin
+		let dfa = Regexp.compile re in
+		match Regexp.prev_match dfa text (Cursor.mk_absolute start start) with
+		| None -> failwith "TODO: error mgmt"
+		| Some c -> c
+	end
 
 (* TODO: we need to be able to parse regexps to parse actions. Thus we need to
  * functorise over Regexp (which gives the opportunity to support several
