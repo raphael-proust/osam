@@ -6,6 +6,10 @@
 	*
 	* Provide hooks for the regexp engine (need to be able to safely pass the
 	* raw strings to the matching engine).
+	*
+	* Provide an alternative implementation with a string for the whole text
+	* and an index info on the side (with byte and code addresses of \n
+	* characters and other such info to speed up random access)
  *)
 
 
@@ -325,19 +329,12 @@ module Rope = struct
 
 	let cat _ = failwith "TODO"
 
+	let change t (c,r) = failwith "TODO"
+
 
 end
 
-
-	type t = Rope.t
+	include Rope
 	let length = Rope.codes
-	let empty = Rope.empty
-	let from_string = Rope.from_string
-	let to_string = Rope.to_string
-	let nth = Rope.nth
-	let sub = Rope.sub
-	let fold = Rope.fold
-	let cat = Rope.cat
-	
 
 

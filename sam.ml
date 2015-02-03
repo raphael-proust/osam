@@ -9,7 +9,6 @@
 module Patch : sig
 
 	type t = (Cursor.t * Text.t)
-	val apply: Text.t -> t -> Text.t
 	val shift: t -> int -> t
 	exception Conflict
 
@@ -19,7 +18,6 @@ module Patch : sig
 end = struct
 
 	type t = (Cursor.t * Text.t)
-	let apply _ _ = failwith "TODO"
 	let effect (c, t) = Text.length t - Cursor.length c
 	let shift (c,t) o = (Cursor.shift c o, t)
 	let conflict (c1,_) (c2, _) = Cursor.overlap c1 c2
@@ -56,7 +54,7 @@ end = struct
 					 *)
 					(fun (text, last, offset) ((c, _) as p) ->
 						let p = shift p offset in
-						let text = apply text p in
+						let text = Text.change text p in
 						let offset = offset + effect p in
 						(text, Cursor.end_ c, offset)
 					)
