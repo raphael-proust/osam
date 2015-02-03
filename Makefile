@@ -1,7 +1,7 @@
 
 NAME=OSam
 
-SRC = Text.ml sam.ml
+SRC = Cursor.ml Mark.ml Patch.ml Text.ml sam.ml
 LIB = $(patsubst %.ml,%.cma,$(SRC))
 LIBX = $(patsubst %.ml,%.cmxa,$(SRC))
 LIBOBJ = $(patsubst %.ml,%.cmo,$(SRC))
@@ -45,8 +45,14 @@ clean:
 Cursor.cmo : Cursor.cmi
 Cursor.cmx : Cursor.cmi
 Cursor.cmi :
-sam.cmo : Text.cmi Cursor.cmi sam.cmi
-sam.cmx : Text.cmx Cursor.cmx sam.cmi
+Mark.cmo : Cursor.cmi Mark.cmi
+Mark.cmx : Cursor.cmx Mark.cmi
+Mark.cmi : Cursor.cmi
+Patch.cmo : Text.cmi Cursor.cmi Patch.cmi
+Patch.cmx : Text.cmx Cursor.cmx Patch.cmi
+Patch.cmi : Text.cmi Cursor.cmi
+sam.cmo : Text.cmi Patch.cmi Mark.cmi Cursor.cmi sam.cmi
+sam.cmx : Text.cmx Patch.cmx Mark.cmx Cursor.cmx sam.cmi
 sam.cmi :
 Text.cmo : Cursor.cmi Text.cmi
 Text.cmx : Cursor.cmx Text.cmi

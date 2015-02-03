@@ -5,83 +5,6 @@
  * - optimise regexps to work on bytes and allow byte folding
  *)
 
-(*TODO: functorise by Text *)
-module Patch : sig
-
-	type t = (Cursor.t * Text.t)
-	val shift: t -> int -> t
-	exception Conflict
-
-	(*intertwines apply and shift correctly*)
-	val apply_batch: ?merge:(t -> t -> t) -> t list -> Text.t -> Text.t
-
-end = struct
-
-	type t = (Cursor.t * Text.t)
-	let effect (c, t) = Text.length t - Cursor.length c
-	let shift (c,t) o = (Cursor.shift c o, t)
-	let conflict (c1,_) (c2, _) = Cursor.overlap c1 c2
-	exception Conflict
-
-	let apply_batch ?(merge = (fun _ _ -> raise Conflict)) cs text =
-		match cs with
-		| [] -> text
-		| _ :: _ as cs ->
-			(* We first sort the patches by initial offset so it is easy to
-			 * detect conflicts and keep track of relative positions. *)
-			let cs =
-				let cs = List.sort (fun (s1,_) (s2,_) -> compare s1 s2) cs in
-				(*These can't fail becuase sort does not remove any element.*)
-				let c = List.hd cs in
-				let cs = List.tl cs in
-				let (cs_rev, last) = List.fold_left
-					(fun (cs_rev, last) c ->
-						if conflict last c then
-							(cs_rev, merge last c)
-						else
-							(last :: cs_rev, c)
-					)
-					([], c)
-					cs
-				in
-				List.rev (last :: cs_rev)
-			in
-			let (text, _, _) =
-				List.fold_left
-					(* text is the text as is being modified,
-					 * last is the highest offset affected,
-					 * offset is the correction to apply to patches
-					 *)
-					(fun (text, last, offset) ((c, _) as p) ->
-						let p = shift p offset in
-						let text = Text.change text p in
-						let offset = offset + effect p in
-						(text, Cursor.end_ c, offset)
-					)
-					(text, 0, 0)
-					cs
-			in
-			text
-
-
-end
-
-
-module Marks : sig
-	(*TODO: make several Marks possible (especially using more than unit) *)
-	type t = unit
-	type env
-	val empty: env
-	val put: env -> t -> Cursor.t -> env
-	val get: env -> t -> Cursor.t option
-end = struct
-	type t = unit
-	type env = Cursor.t option
-	let empty = None
-	let put _ () c = Some c
-	let get e () = e
-end
-
 module Regexp : sig
 	type nfa
 	type dfa
@@ -145,7 +68,7 @@ type addr =
 	(** The last line *)
 	| LastLine
 	(** A previously set mark *)
-	| Mark of Marks.t
+	| Mark of Mark.t
 	(** The range of characters of the second address, evaluated at the end of
 	 * the first. *)
 	| Plus of addr * addr
@@ -220,7 +143,7 @@ type action =
 	| Pipe of Command.t
 
 	(** Sets the given mark to address the current selection. *)
-	| SetMark of Marks.t
+	| SetMark of Mark.t
 
 val parse: string -> addr * action
 
@@ -228,13 +151,13 @@ val run:
 	(* Pass the text to be edited *)
 	text:Text.t ->
 	(* Some context *)
-	dot:Cursor.t -> marks:Marks.env ->
+	dot:Cursor.t -> marks:Mark.env ->
 	(* A target range *)
 	addr ->
 	(* And the action to be executed *)
 	action ->
 	(* We return a patch rather than modifying the text *)
-	(Patch.t list * Marks.env)
+	(Patch.t list * Mark.env)
 
 end = struct
 
@@ -257,7 +180,7 @@ type addr =
 	| Offset of int
 	| Line of int
 	| LastLine
-	| Mark of Marks.t
+	| Mark of Mark.t
 	| Plus of addr * addr
 	| Minus of addr * addr
 	| Comma of addr * addr
@@ -281,7 +204,7 @@ type action =
 	| PipeOut of Command.t
 	| PipeIn of Command.t
 	| Pipe of Command.t
-	| SetMark of Marks.t
+	| SetMark of Mark.t
 
 
 let rec address text dot marks start reverse = function
@@ -299,7 +222,7 @@ let rec address text dot marks start reverse = function
 	| Line _ -> failwith "TODO"
 	| LastLine -> failwith "TODO"
 	| Mark m -> begin
-		match Marks.get marks m with
+		match Mark.get marks m with
 		| Some c -> c
 		| None -> failwith "TODO: error management"
 	end
@@ -386,22 +309,23 @@ let rec action text (dot:Cursor.t) marks = function
 
 	| Append t ->
 		let e = Cursor.end_ dot in
-		([(Cursor.mk_absolute e e, t)], marks)
+		([Patch.mk (Cursor.mk_absolute e e) t], marks)
 	| Insert t ->
 		let s = Cursor.start dot in
-		([(Cursor.mk_absolute s s, t)], marks)
+		([Patch.mk (Cursor.mk_absolute s s) t], marks)
 	| Replace t ->
-		([(dot , t)], marks)
+		([Patch.mk dot t], marks)
 	| Substitute (se, sr) -> failwith "TODO"
 	| Delete ->
-		([(dot , Text.empty)], marks)
+		([Patch.mk dot Text.empty], marks)
 
 	| Move a ->
 		let target = address text dot marks (Cursor.start dot) false a in
-		([(target, Text.sub text dot); (dot, Text.empty)], marks)
+		([Patch.mk target (Text.sub text dot); Patch.mk dot Text.empty],
+		marks)
 	| Copy a ->
 		let target = address text dot marks (Cursor.start dot) false a in
-		([target, Text.sub text dot], marks)
+		([Patch.mk target (Text.sub text dot)], marks)
 
 	(*TODO: manage stdout and such *)
 	| PipeOut cmd ->
@@ -416,7 +340,7 @@ let rec action text (dot:Cursor.t) marks = function
 			| None -> Text.empty
 			| Some t -> t
 		in
-		([dot, res], marks)
+		([Patch.mk dot res], marks)
 	| Pipe cmd ->
 		let b = Buffer.create 100 in
 		let (_ : Command.status) =
@@ -429,10 +353,10 @@ let rec action text (dot:Cursor.t) marks = function
 			| None -> Text.empty
 			| Some t -> t
 		in
-		([dot, res], marks)
+		([Patch.mk dot res], marks)
 
 	| SetMark m ->
-		([], Marks.put marks m dot)
+		([], Mark.put marks m dot)
 
 and fold_over_dots text dots marks act =
 	let (patchess, marks) =
