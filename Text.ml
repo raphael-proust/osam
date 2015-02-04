@@ -33,7 +33,23 @@ let codes c = c.extent.codes
 let bytes c = c.extent.bytes
 let decoder c =
 	let d = Uutf.decoder ~encoding:`UTF_8 `Manual in
-	Uutf.Manual.src d c.content c.offset.bytes c.extent.bytes
+	Uutf.Manual.src d c.content c.offset.bytes c.extent.bytes;
+	d
+
+let byte_offset c o =
+	if o < 0 || c.extent.codes <= o then
+		raise (Invalid_argument "out of bound")
+	else
+		let d = decoder c in
+		let rec loop () =
+			if Uutf.decoder_count d = o then
+				Uutf.decoder_byte_count d
+			else begin
+				ignore (Uutf.decode d);
+				loop ()
+			end
+		in
+		loop ()
 
 let sub cursor c =
 	if c.offset.codes + c.extent.codes <= Cursor.end_ cursor then
@@ -42,11 +58,11 @@ let sub cursor c =
 		{
 			content = c.content;
 			offset = {
-				bytes = failwith "TODO";
+				bytes = byte_offset c (Cursor.start cursor);
 				codes = c.offset.codes + Cursor.start cursor;
 			};
 			extent = {
-				bytes = failwith "TODO";
+				bytes = byte_offset c (Cursor.end_ cursor);
 				codes = Cursor.length cursor;
 			};
 		}
@@ -100,13 +116,13 @@ let to_string s = failwith "TODO"
 
 let rec sub t c =
 	if Cursor.start c < 0 || Cursor.end_ c > codes t then
-		failwith "TODO: error management"
+		raise (Invalid_argument "Out of bounds")
 	else match t with
 	| Empty -> assert false
 	| Leaf chunk ->
 		Leaf (Chunk.sub c chunk)
 	| Split s -> match s.content with
-	| [] -> failwith "TODO: error management"
+	| [] -> assert false
 	| t::ts ->
 		if Cursor.end_ c < codes t then
 			sub t c
