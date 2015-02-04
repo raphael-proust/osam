@@ -1,17 +1,23 @@
 
-NAME=OSam
+NAME=osam
 
-SRC = Cursor.ml Mark.ml Patch.ml Text.ml sam.ml
-LIB = $(patsubst %.ml,%.cma,$(SRC))
-LIBX = $(patsubst %.ml,%.cmxa,$(SRC))
-LIBOBJ = $(patsubst %.ml,%.cmo,$(SRC))
-LIBXOBJ = $(patsubst %.ml,%.cmx,$(SRC))
-LIBCMI = $(patsubst %.ml,%.cmi,$(SRC))
-LIBA = $(patsubst %.ml,%.a,$(SRC))
+LIBSRC = Cursor.ml Mark.ml Text.ml Patch.ml Regexp.ml Syscmd.ml Action.ml
+LIB = $(patsubst %.ml,%.cma,$(LIBSRC))
+LIBX = $(patsubst %.ml,%.cmxa,$(LIBSRC))
+LIBOBJ = $(patsubst %.ml,%.cmo,$(LIBSRC))
+LIBXOBJ = $(patsubst %.ml,%.cmx,$(LIBSRC))
+LIBCMI = $(patsubst %.ml,%.cmi,$(LIBSRC))
+LIBA = $(patsubst %.ml,%.a,$(LIBSRC))
+
+SRC = osam.ml
+OBJ = $(patsubst %.ml,%.cmo,$(SRC))
+XOBJ = $(patsubst %.ml,%.cmx,$(SRC))
+EXEC = $(patsubst %.ml,%,$(SRC))
 
 REQUIRES= #when not empty, add --package "$(REQUIRES)" to build rules
+INCLUDES=
 
-all: $(LIB) $(LIBX)
+all: $(LIB) $(LIBX) $(EXEC)
 
 #.PHONY: install
 #install: all
@@ -20,6 +26,9 @@ all: $(LIB) $(LIBX)
 #.PHONY: uninstall
 #uninstall:
 #	ocamlfind remove $(NAME)
+
+$(EXEC): $(LIBXOBJ) $(XOBJ)
+	ocamlfind ocamlopt -o $@ $<
 
 $(LIB): $(LIBCMI) $(LIBOBJ)
 	ocamlfind ocamlc -a -o $@ $(LIBOBJ)
@@ -42,6 +51,11 @@ clean:
 	  $(LIB) $(LIBX) $(LIBA)
 
 #Dependencies
+Action.cmo : Text.cmi Syscmd.cmi Regexp.cmi Patch.cmi Mark.cmi Cursor.cmi \
+    Action.cmi
+Action.cmx : Text.cmx Syscmd.cmx Regexp.cmx Patch.cmx Mark.cmx Cursor.cmx \
+    Action.cmi
+Action.cmi : Text.cmi Syscmd.cmi Regexp.cmi Patch.cmi Mark.cmi Cursor.cmi
 Cursor.cmo : Cursor.cmi
 Cursor.cmx : Cursor.cmi
 Cursor.cmi :
@@ -51,9 +65,14 @@ Mark.cmi : Cursor.cmi
 Patch.cmo : Text.cmi Cursor.cmi Patch.cmi
 Patch.cmx : Text.cmx Cursor.cmx Patch.cmi
 Patch.cmi : Text.cmi Cursor.cmi
-sam.cmo : Text.cmi Patch.cmi Mark.cmi Cursor.cmi sam.cmi
-sam.cmx : Text.cmx Patch.cmx Mark.cmx Cursor.cmx sam.cmi
-sam.cmi :
+Regexp.cmo : Regexp.cmi
+Regexp.cmx : Regexp.cmi
+Regexp.cmi : Text.cmi Cursor.cmi
+osam.cmo : Text.cmi Patch.cmi Mark.cmi Cursor.cmi Action.cmi
+osam.cmx : Text.cmx Patch.cmx Mark.cmx Cursor.cmx Action.cmx
+Syscmd.cmo : Syscmd.cmi
+Syscmd.cmx : Syscmd.cmi
+Syscmd.cmi :
 Text.cmo : Cursor.cmi Text.cmi
 Text.cmx : Cursor.cmx Text.cmi
 Text.cmi : Cursor.cmi
