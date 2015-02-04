@@ -20,5 +20,8 @@ val shift_end: t -> int -> t
  * offset [o]. NB: If [o] is negative, the result is larger than [t]. *)
 val shift_start: t -> int -> t
 
+val split_relative: t -> int -> t * t
+val split_absolute: t -> int -> t * t
+
 val overlap: t -> t -> bool
 

@@ -27,10 +27,7 @@ type t = {
 
 	(* Other information *)
 
-	(* The number of newline characters in the chunk. Note that newlines
-	 * are only ever at the end of the chunk *)
-	newlines: int;
-	ascii: bool;
+	(*TODO: newlines:int; ascii:bool; *)
 }
 let codes c = c.extent.codes
 let bytes c = c.extent.bytes
@@ -38,11 +35,28 @@ let decoder c =
 	let d = Uutf.decoder ~encoding:`UTF_8 `Manual in
 	Uutf.Manual.src d c.content c.offset.bytes c.extent.bytes
 
-let nth : int -> t -> Uutf.uchar = failwith "TODO"
-let iter : (Uutf.uchar -> unit) -> t -> unit = failwith "TODO"
-let fold : ('a -> Uutf.uchar -> 'a) -> 'a -> t -> 'a = fun _ _ _ -> failwith "TODO"
-let sub : Cursor.t -> t -> t = failwith "TODO"
-let split : int -> t -> t = failwith "TODO"
+let sub cursor c =
+	if c.offset.codes + c.extent.codes <= Cursor.end_ cursor then
+		raise (Invalid_argument "out of bound")
+	else
+		{
+			content = c.content;
+			offset = {
+				bytes = failwith "TODO";
+				codes = c.offset.codes + Cursor.start cursor;
+			};
+			extent = {
+				bytes = failwith "TODO";
+				codes = Cursor.length cursor;
+			};
+		}
+
+
+let hook f acc c s l =
+	if c.extent.bytes < s + l then
+		raise (Invalid_argument "out of bound")
+	else
+		f acc c.content (c.offset.bytes + s) l
 
 end
 	
@@ -84,27 +98,6 @@ let from_string s =
 
 let to_string s = failwith "TODO"
 
-let rec nth t o =
-	if o < 0 || codes t < o then
-		failwith "TODO: error management"
-	else match t with
-	| Empty -> assert false
-	| Leaf c ->
-		Chunk.nth o c
-	| Split s -> match s.content with
-	| [] -> failwith "TODO: error management"
-	| t::ts ->
-		if o < codes t then
-			nth t o
-		else
-			let s = {
-				content = ts;
-				codes = s.codes - codes t;
-				bytes = s.bytes - bytes t;
-			}
-			in
-			nth (Split s) (o - codes t)
-
 let rec sub t c =
 	if Cursor.start c < 0 || Cursor.end_ c > codes t then
 		failwith "TODO: error management"
@@ -129,15 +122,32 @@ let rec sub t c =
 			(*TODO: make chunks using the base strings and build a Split*)
 			failwith "TODO: this is harder"
 
-
-let rec fold f acc = function
-	| Empty -> acc
-	| Leaf c ->
-		Chunk.fold f acc c
-	| Split {content} ->
-		List.fold_left (fold f) acc content
-
-let cat _ = failwith "TODO"
-
 let change t (c,r) = failwith "TODO"
+
+let rec hook f acc t s l =
+	if bytes t < l then
+		raise (Invalid_argument "Out of bound")
+	else match t with
+	| Empty -> assert (l = 0); acc
+	| Leaf c -> Chunk.hook f acc c s l
+	| Split ts ->
+		let (acc, _, _) = List.fold_left
+			(fun (acc, s, l) t ->
+				if l = 0 then
+					(* the hook is past *)
+					(acc, 0, 0)
+				else if bytes t < s then
+					(* the hook is for further away *)
+					(acc, s - bytes t, l)
+				else if s + l <= bytes t then
+					let acc = hook f acc t s l in
+					(acc, 0, 0)
+				else (* bytes t < s + l *)
+					let acc = hook f acc t s (bytes t - s) in
+					(acc, 0, l - (bytes t - s))
+			)
+			(acc, s, l)
+			ts.content
+		in
+		acc
 

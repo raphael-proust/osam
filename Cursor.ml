@@ -34,8 +34,7 @@ let start (s, _) = s
 let end_ (_, e) = e
 let length (s, e) = e - s
 
-(*Note: we manually inline the constructors here. Be careful about the
- * INVARIANT. *)
+(* TODO: replace by constructor to make sure the INVARIANT is safe. *)
 let shift (s,e) o = (s+o, e+o)
 let shift_end (s,e) o =
 	if s <= e+o then
@@ -47,6 +46,22 @@ let shift_start (s,e) o =
 		(s+o, e)
 	else
 		(e, s+o)
+
+let split_relative ((start, end_) as t) i =
+	if i < 0 then
+		((start, start), t)
+	else if end_ - start <= i then
+		(t, (end_, end_))
+	else
+		((start, start+i), (start+i, end_))
+let split_absolute ((start, end_) as t) i =
+	if i <= start then
+		((start, start), t)
+	else if end_ <= i then
+		(t, (end_, end_))
+	else
+		((start, i), (i, end_))
+
 
 let overlap (s1, e1) (s2, e2) =
 	(s1 <= s2 && s2 < e1)
