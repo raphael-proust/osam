@@ -47,8 +47,8 @@ $(LIBX): $(LIBCMI) $(LIBXOBJ)
 
 .PHONY: clean
 clean:
-	rm -f *.cmo *.cmx *.cmi *.o \
-	  $(LIB) $(LIBX) $(LIBA)
+	rm -f *.cm[oixa] *.cmxa *.o *.a \
+	  $(EXEC)
 
 #Dependencies
 Action.cmo : Text.cmi Syscmd.cmi Regexp.cmi Patch.cmi Mark.cmi Cursor.cmi \
