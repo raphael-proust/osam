@@ -14,8 +14,7 @@ OBJ = $(patsubst %.ml,%.cmo,$(SRC))
 XOBJ = $(patsubst %.ml,%.cmx,$(SRC))
 EXEC = $(patsubst %.ml,%,$(SRC))
 
-REQUIRES= #when not empty, add --package "$(REQUIRES)" to build rules
-INCLUDES=
+REQUIRES=-package uutf
 
 all: $(LIB) $(LIBX) $(EXEC)
 
@@ -28,22 +27,22 @@ all: $(LIB) $(LIBX) $(EXEC)
 #	ocamlfind remove $(NAME)
 
 $(EXEC): $(LIBXOBJ) $(XOBJ)
-	ocamlfind ocamlopt -o $@ $<
+	ocamlfind ocamlopt -linkpkg $(REQUIRES) -o $@ $<
 
 $(LIB): $(LIBCMI) $(LIBOBJ)
-	ocamlfind ocamlc -a -o $@ $(LIBOBJ)
+	ocamlfind ocamlc $(REQUIRES) -a -o $@ $(LIBOBJ)
 
 $(LIBX): $(LIBCMI) $(LIBXOBJ)
-	ocamlfind ocamlopt -a -o $@ $(LIBXOBJ)
+	ocamlfind ocamlopt $(REQUIRES) -a -o $@ $(LIBXOBJ)
 
 %.cmo: %.ml
-	ocamlfind ocamlc -c $(INCLUDES) $<
+	ocamlfind ocamlc $(REQUIRES) -c $<
 
 %.cmi: %.mli
-	ocamlfind ocamlc -c $(INCLUDES) $<
+	ocamlfind ocamlc $(REQUIRES) -c $<
 
 %.cmx: %.ml
-	ocamlfind ocamlopt -c $(INCLUDES) $<
+	ocamlfind ocamlopt $(REQUIRES) -c $<
 
 .PHONY: clean
 clean:
@@ -62,14 +61,14 @@ Cursor.cmi :
 Mark.cmo : Cursor.cmi Mark.cmi
 Mark.cmx : Cursor.cmx Mark.cmi
 Mark.cmi : Cursor.cmi
+osam.cmo : Text.cmi Patch.cmi Mark.cmi Cursor.cmi Action.cmi
+osam.cmx : Text.cmx Patch.cmx Mark.cmx Cursor.cmx Action.cmx
 Patch.cmo : Text.cmi Cursor.cmi Patch.cmi
 Patch.cmx : Text.cmx Cursor.cmx Patch.cmi
 Patch.cmi : Text.cmi Cursor.cmi
 Regexp.cmo : Regexp.cmi
 Regexp.cmx : Regexp.cmi
 Regexp.cmi : Text.cmi Cursor.cmi
-osam.cmo : Text.cmi Patch.cmi Mark.cmi Cursor.cmi Action.cmi
-osam.cmx : Text.cmx Patch.cmx Mark.cmx Cursor.cmx Action.cmx
 Syscmd.cmo : Syscmd.cmi
 Syscmd.cmx : Syscmd.cmi
 Syscmd.cmi :
