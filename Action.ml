@@ -8,6 +8,8 @@
  * abstract ones.
  *)
 
+module Mark = Mark.Unit
+
 (** Addresses: addresses describe ranges in the document *)
 type addr =
 	| Dot

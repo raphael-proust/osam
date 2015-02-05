@@ -1,4 +1,5 @@
 (*TODO: functorise over marks and text, provide both UTF8 and ASCII text*)
+module Mark : Mark.S
 
 type addr =
 	(** The current range. *)

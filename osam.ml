@@ -4,7 +4,7 @@ let () =
 		Action.run
 			~text:Text.empty
 			~dot:(Cursor.mk_point 0)
-			~marks:Mark.empty
+			~marks:Action.Mark.empty
 			(Action.Offset 0)
 			(Action.Replace Text.empty)
 	in
