@@ -1,15 +1,23 @@
-type nfa
-type dfa
-val compile: nfa -> dfa
-val has_match: dfa -> Text.t -> Cursor.t -> bool
-val next_match: dfa -> Text.t -> Cursor.t -> Cursor.t option
-val prev_match: dfa -> Text.t -> Cursor.t -> Cursor.t option
-val all_matches: dfa -> Text.t -> Cursor.t -> Cursor.t list
+
 module DSL: sig
-	val point: Uutf.uchar -> nfa
-	val cat: nfa list -> nfa
-	val alt: nfa list -> nfa
-	val star: nfa -> nfa
-	val question: nfa -> nfa
-	val plus: nfa -> nfa
+	type t
+	val point: Uutf.uchar -> t
+	val seq: t list -> t
+	val alt: t list -> t
+	val question: t -> t
+	val star: t -> t
+	val plus: t -> t
+	val parse: string -> int -> (t * int)
 end
+
+module type S = sig
+	type t
+	val compile: DSL.t -> t
+	val has_match: t -> Text.t -> Cursor.t -> bool
+	val next_match: t -> Text.t -> Cursor.t -> Cursor.t option
+	val prev_match: t -> Text.t -> Cursor.t -> Cursor.t option
+	val all_matches: t -> Text.t -> Cursor.t -> Cursor.t list
+end
+
+module NFA : S
+module DFA : S

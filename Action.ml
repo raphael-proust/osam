@@ -9,6 +9,7 @@
  *)
 
 module Mark = Mark.Unit
+module Re = Regexp.DFA
 
 (** Addresses: addresses describe ranges in the document *)
 type addr =
@@ -21,18 +22,18 @@ type addr =
 	| Minus of addr * addr
 	| Comma of addr * addr
 	| Semicolon of addr * addr
-	| ForwardRe of Regexp.nfa
-	| BackwardRe of Regexp.nfa
+	| ForwardRe of Regexp.DSL.t
+	| BackwardRe of Regexp.DSL.t
 
 type substitutee
 type substitutor
 
 type action =
 	| Dispatch of action list
-	| For of Regexp.nfa * action
-	| Rof of Regexp.nfa * action
-	| If of Regexp.nfa * action
-	| Ifnot of Regexp.nfa * action
+	| For of Regexp.DSL.t * action
+	| Rof of Regexp.DSL.t * action
+	| If of Regexp.DSL.t * action
+	| Ifnot of Regexp.DSL.t * action
 	| Append of Text.t
 	| Insert of Text.t
 	| Replace of Text.t
@@ -80,19 +81,20 @@ let rec address text dot marks start reverse = function
 		let c2 = address text c1 marks (Cursor.end_ c1) reverse a2 in
 		Cursor.range c1 c2
 	| ForwardRe re -> begin
-		let dfa = Regexp.compile re in
-		match Regexp.next_match dfa text (Cursor.mk_absolute start start) with
+		let dfa = Re.compile re in
+		match Re.next_match dfa text (Cursor.mk_absolute start start) with
 		| None -> failwith "TODO: error mgmt"
 		| Some c -> c
 	end
 	| BackwardRe re -> begin
-		let dfa = Regexp.compile re in
-		match Regexp.prev_match dfa text (Cursor.mk_absolute start start) with
+		let dfa = Re.compile re in
+		match Re.prev_match dfa text (Cursor.mk_absolute start start) with
 		| None -> failwith "TODO: error mgmt"
 		| Some c -> c
 	end
 
-(* TODO: we need to be able to parse regexps to parse actions. Thus we need to
+(* TODO: we need to be able to parse regexps and marks to parse actions. Thus
+ * we need to
  * functorise over Regexp (which gives the opportunity to support several
  * regexp style (plan9, vim, perl, &c.)). *)
 let parse _ = failwith "TODO"
@@ -129,19 +131,19 @@ let rec action text (dot:Cursor.t) marks = function
 		in
 		(List.flatten patchess, marks)
 	| For (re, act) ->
-		let dots = Regexp.(all_matches (compile re) text dot) in
+		let dots = Re.(all_matches (compile re) text dot) in
 		fold_over_dots text dots marks act
 	| Rof (re, act) ->
-		let dots = Regexp.(all_matches (compile re) text dot) in
+		let dots = Re.(all_matches (compile re) text dot) in
 		let dots = reverse_dots dot dots in
 		fold_over_dots text dots marks act
 	| If (re, act) ->
-		if Regexp.(has_match (compile re) text dot) then
+		if Re.(has_match (compile re) text dot) then
 			action text dot marks act
 		else
 			([], marks)
 	| Ifnot (re, act) ->
-		if Regexp.(has_match (compile re) text dot) then
+		if Re.(has_match (compile re) text dot) then
 			([], marks)
 		else
 			action text dot marks act

@@ -24,10 +24,10 @@ type addr =
 	(** The range of characters covering both addresses and the gap in between
 	 * if any. The second address is evaluated at the end of the first. *)
 	| Semicolon of addr * addr
-	(** The first match of the Regexp.nfa. *)
-	| ForwardRe of Regexp.nfa
-	(** The first match of the Regexp.nfa, backward. *)
-	| BackwardRe of Regexp.nfa
+	(** The first match of the Regexp *)
+	| ForwardRe of Regexp.DSL.t
+	(** The first match of the Regexp backward. *)
+	| BackwardRe of Regexp.DSL.t
 
 
 (*make a separate module for substitution*)
@@ -45,18 +45,18 @@ type action =
 	(** For: execute the action for each of the matches of the regexp in the
 	 * current range. Actions are executed with the range set to the regexp
 	 * match. *)
-	| For of Regexp.nfa * action
+	| For of Regexp.DSL.t * action
 	(** Rof: execute the action for each of the gap between the matches of the
 	 * regexp in the current range. The gaps include the selection between
 	 * the start of the dot and the first match as well as between the last
 	 * match and the end of the dot -- even if these ranges are empty. *)
-	| Rof of Regexp.nfa * action
+	| Rof of Regexp.DSL.t * action
 	(** If: execute the action if there is a substring that matches the
 	 * regexp in the current range. *)
-	| If of Regexp.nfa * action
+	| If of Regexp.DSL.t * action
 	(** Ifnot: execute the action if there is *no* substring that matches the
 	 * regexp in the current range. *)
-	| Ifnot of Regexp.nfa * action
+	| Ifnot of Regexp.DSL.t * action
 
 	(** Append: add text at the end of the current range. *)
 	| Append of Text.t
