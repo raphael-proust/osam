@@ -27,7 +27,7 @@ type t = {
 
 	(* Other information *)
 
-	(*TODO: newlines:int; ascii:bool; *)
+	newlines: int;
 }
 let codes c = c.extent.codes
 let bytes c = c.extent.bytes
@@ -65,6 +65,8 @@ let sub cursor c =
 				bytes = byte_offset c (Cursor.end_ cursor);
 				codes = Cursor.length cursor;
 			};
+			newlines =
+				max 0 (c.newlines - (c.extent.codes - Cursor.end_ cursor));
 		}
 
 
@@ -108,7 +110,7 @@ exception Malformed
 let from_string s =
 	try
 		let zero = {bytes=0; codes=0} in
-		let (r, bytes, codes, _) =
+		let (r, offset, extent, newlines) =
 			Uutf.String.fold_utf_8
 				(fun (r, offset, extent, newlines) i c ->
 					match c with
@@ -116,20 +118,34 @@ let from_string s =
 					| `Uchar u ->
 						if newlines > 0 && u <> (Char.code '\n') then
 							(*break*)
-							((append r {Chunk.content=s; offset; extent}),
-							 (failwith "TODO"),
-							 (failwith "TODO"),
+							((append
+								r
+								{Chunk.content=s; offset; extent; newlines}
+							 ),
+							 {bytes = i;
+							  codes = offset.codes + extent.codes + 1;
+							 },
+							 zero,
 							 0)
+						else if u = (Char.code '\n') then
+							(r,
+							 offset,
+							 {bytes = i - offset.bytes;
+							  codes = extent.codes + 1
+							 },
+							 newlines + 1)
 						else
 							(r,
-							 (failwith "TODO"),
-							 (failwith "TODO"),
-							 0)
+							 offset,
+							 {bytes = i - offset.bytes;
+							  codes = extent.codes + 1
+							 },
+							 newlines)
 				)
 				(Empty, zero, zero, 0)
 				s
 		in
-		Some (append r (failwith "TODO: build the chunk"))
+		Some (append r {Chunk.content=s; offset; extent; newlines})
 	with
 	| Malformed -> None
 
