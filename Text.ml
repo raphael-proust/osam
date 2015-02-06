@@ -77,7 +77,7 @@ let hook f acc c s l =
 end
 	
 
-(* We use ropes of chunks *)
+(* We use ropes of chunks. *)
 type split = {
 	content: t list;
 	bytes: int;
@@ -87,6 +87,11 @@ and t =
 	| Empty
 	| Leaf of Chunk.t
 	| Split of split
+
+let append t c = match t with
+	| Empty -> Leaf c
+	| Leaf l -> Split (failwith "TODO")
+	| Split s -> failwith "TODO: find a balancing scheme"
 
 let codes = function
 	| Empty -> 0
@@ -102,13 +107,29 @@ let empty = Empty
 exception Malformed
 let from_string s =
 	try
-		let cs =
+		let zero = {bytes=0; codes=0} in
+		let (r, bytes, codes, _) =
 			Uutf.String.fold_utf_8
-				(fun _ _ _ -> failwith "TODO: split into chunks")
-				Empty
+				(fun (r, offset, extent, newlines) i c ->
+					match c with
+					| `Malformed _ -> failwith "TODO: error mgmt"
+					| `Uchar u ->
+						if newlines > 0 && u <> (Char.code '\n') then
+							(*break*)
+							((append r {Chunk.content=s; offset; extent}),
+							 (failwith "TODO"),
+							 (failwith "TODO"),
+							 0)
+						else
+							(r,
+							 (failwith "TODO"),
+							 (failwith "TODO"),
+							 0)
+				)
+				(Empty, zero, zero, 0)
 				s
 		in
-		Some cs
+		Some (append r (failwith "TODO: build the chunk"))
 	with
 	| Malformed -> None
 
