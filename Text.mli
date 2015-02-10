@@ -23,5 +23,9 @@ val length: t -> int
 val change: t -> (Cursor.t * t) -> t
 
 (* [hook f init t s l] folds [f] over chunks of strings that represent the
- * substring of [t] starting at [s] and [l] long. *)
+ * substring of [t] starting at code [s] and [l] codes long. The arguments of
+ * [f] are in bytes.
+ *
+ * TODO: this is potentially confusing specs (interleaving bytes and codes,
+ * maybe use type aliases. *)
 val hook: ('a -> string -> int -> int -> 'a) -> 'a -> t -> int -> int -> 'a

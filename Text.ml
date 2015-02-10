@@ -71,10 +71,12 @@ let sub cursor c =
 
 
 let hook f acc c s l =
-	if c.extent.bytes < s + l then
+	if c.extent.codes < s + l then
 		raise (Invalid_argument "out of bound")
 	else
-		f acc c.content (c.offset.bytes + s) l
+		let ss = byte_offset c s in
+		let ee = byte_offset c (s + l) in
+		f acc c.content (c.offset.bytes + ss) (ee - ss)
 
 end
 	
@@ -92,8 +94,20 @@ and t =
 
 let append t c = match t with
 	| Empty -> Leaf c
-	| Leaf l -> Split (failwith "TODO")
-	| Split s -> failwith "TODO: find a balancing scheme"
+	| Leaf l ->
+		Split {
+			content = [Leaf l; Leaf c];
+			bytes = Chunk.(bytes l + bytes c);
+			codes = Chunk.(codes l + codes c);
+		}
+	| Split s ->
+		(* TODO: find a balancing scheme, experiment and benchmark *)
+		Split {
+			content = s.content @ [Leaf c];
+			bytes = s.bytes + Chunk.bytes c;
+			codes = s.codes + Chunk.codes c;
+		}
+
 
 let codes = function
 	| Empty -> 0
@@ -149,8 +163,6 @@ let from_string s =
 	with
 	| Malformed -> None
 
-let to_string s = failwith "TODO"
-
 let rec sub t c =
 	if Cursor.start c < 0 || Cursor.end_ c > codes t then
 		raise (Invalid_argument "Out of bounds")
@@ -178,7 +190,7 @@ let rec sub t c =
 let change t (c,r) = failwith "TODO"
 
 let rec hook f acc t s l =
-	if bytes t < l then
+	if codes t < l then
 		raise (Invalid_argument "Out of bound")
 	else match t with
 	| Empty -> assert (l = 0); acc
@@ -189,18 +201,26 @@ let rec hook f acc t s l =
 				if l = 0 then
 					(* the hook is past *)
 					(acc, 0, 0)
-				else if bytes t < s then
+				else if codes t < s then
 					(* the hook is for further away *)
-					(acc, s - bytes t, l)
-				else if s + l <= bytes t then
+					(acc, s - codes t, l)
+				else if s + l <= codes t then
+					(* the hook is included in the current chunk *)
 					let acc = hook f acc t s l in
 					(acc, 0, 0)
-				else (* bytes t < s + l *)
-					let acc = hook f acc t s (bytes t - s) in
-					(acc, 0, l - (bytes t - s))
+				else (* codes t < s + l *)
+					(* the hook intersect witht the current chunk and goes
+					 * over *)
+					let acc = hook f acc t s (codes t - s) in
+					(acc, 0, l - (codes t - s))
 			)
 			(acc, s, l)
 			ts.content
 		in
 		acc
+
+let to_string s =
+	let b = Buffer.create (bytes s) in
+	hook (fun () s o l -> Buffer.add_substring b s o l) () s 0 (codes s);
+	Buffer.contents b
 
