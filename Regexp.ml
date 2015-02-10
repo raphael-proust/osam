@@ -15,7 +15,7 @@ module DSL = struct
 	let star t = Loop t
 	let plus t = Sequence [t ; Loop t]
 
-	let parse s p = failwith "TODO"
+	let parse s p = failwith "TODO: Regexp.parse"
 end
 
 module type S = sig

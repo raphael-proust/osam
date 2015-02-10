@@ -27,7 +27,7 @@ all: $(LIB) $(LIBX) $(EXEC)
 #	ocamlfind remove $(NAME)
 
 $(EXEC): $(LIBXOBJ) $(XOBJ)
-	ocamlfind ocamlopt -linkpkg $(REQUIRES) -o $@ $<
+	ocamlfind ocamlopt -linkpkg $(REQUIRES) -o $@ $(LIBXOBJ) $(XOBJ)
 
 $(LIB): $(LIBCMI) $(LIBOBJ)
 	ocamlfind ocamlc $(REQUIRES) -a -o $@ $(LIBOBJ)

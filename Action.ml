@@ -59,8 +59,8 @@ let rec address text dot marks start reverse = function
 	 * [dot] and [start] are unrelated. *)
 	| Dot -> dot
 	| Offset i -> Cursor.mk_relative ~start:i ~offset:0
-	| Line _ -> failwith "TODO"
-	| LastLine -> failwith "TODO"
+	| Line _ -> failwith "TODO: line addresses"
+	| LastLine -> failwith "TODO: LastLine address"
 	| Mark m -> begin
 		match Mark.get marks m with
 		| Some c -> c
@@ -97,7 +97,7 @@ let rec address text dot marks start reverse = function
  * we need to
  * functorise over Regexp (which gives the opportunity to support several
  * regexp style (plan9, vim, perl, &c.)). *)
-let parse _ = failwith "TODO"
+let parse _ = failwith "TODO: Action.parse"
 
 let reverse_dots range dots =
 	let s = Cursor.start range in
@@ -156,13 +156,15 @@ let rec action text (dot:Cursor.t) marks = function
 		([Patch.mk (Cursor.mk_absolute s s) t], marks)
 	| Replace t ->
 		([Patch.mk dot t], marks)
-	| Substitute (se, sr) -> failwith "TODO"
+	| Substitute (se, sr) -> failwith "TODO: Substitute Action"
 	| Delete ->
-		([Patch.mk dot Text.empty], marks)
+		let empty = Text.from_string "" in
+		([Patch.mk dot empty], marks)
 
 	| Move a ->
+		let empty = Text.from_string "" in
 		let target = address text dot marks (Cursor.start dot) false a in
-		([Patch.mk target (Text.sub text dot); Patch.mk dot Text.empty],
+		([Patch.mk target (Text.sub text dot); Patch.mk dot empty],
 		marks)
 	| Copy a ->
 		let target = address text dot marks (Cursor.start dot) false a in
@@ -177,10 +179,7 @@ let rec action text (dot:Cursor.t) marks = function
 	| PipeIn cmd ->
 		let b = Buffer.create 100 in
 		let (_ : Syscmd.status) = Syscmd.run ~stdout:b cmd in
-		let res = match Text.from_string (Buffer.contents b) with
-			| None -> Text.empty
-			| Some t -> t
-		in
+		let res = Text.from_string (Buffer.contents b) in
 		([Patch.mk dot res], marks)
 	| Pipe cmd ->
 		let b = Buffer.create 100 in
@@ -190,10 +189,7 @@ let rec action text (dot:Cursor.t) marks = function
 				~stdout:b
 				cmd
 		in
-		let res = match Text.from_string (Buffer.contents b) with
-			| None -> Text.empty
-			| Some t -> t
-		in
+		let res = Text.from_string (Buffer.contents b) in
 		([Patch.mk dot res], marks)
 
 	| SetMark m ->
