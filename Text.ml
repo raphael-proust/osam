@@ -45,6 +45,8 @@ type t = {
 	malformeds: address list;
 }
 
+let length t = t.end_.codes - t.start.codes
+
 exception Early_Return_Byte of int
 let byte t o =
 	if o > (t.end_.codes - t.start.codes) then

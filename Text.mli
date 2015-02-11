@@ -3,6 +3,8 @@
 
 type t
 
+val length: t -> int
+
 (* [from_string s] checks the UTF8 validity of [s] and returns text if it
  * is valid. [to_string t] is the inverse. *)
 val from_string: string -> t
