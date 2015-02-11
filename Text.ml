@@ -47,6 +47,9 @@ type t = {
 
 exception Early_Return_Byte of int
 let byte t o =
+	if o > (t.end_.codes - t.start.codes) then
+		raise (Invalid_argument "Code out of bound")
+	else
 	let rec find_milestone candidate = function
 		| [] -> candidate
 		| m::ms ->
@@ -78,25 +81,89 @@ let byte t o =
 	in
 	find (find_milestone zero t.milestones)
 
-let hook ?o ?l ~f ~acc s = failwith "TODO"
+let hook ?(o=0) ?l ~f ~acc t =
+	let l = match l with
+		| None -> (t.end_.codes - t.start.codes) - o
+		| Some l ->
+			if l > (t.end_.codes - t.start.codes) - o then
+				raise (Invalid_argument "Code out of bound")
+			else
+				l
+	in
+	let o = byte t o in
+	let l = (byte t l) - o in
+	f acc t.content o l
+
 let sub t c =
-	let patch_addresses _ = failwith "TODO" in
+	let start =
+		let codes = Cursor.start c in
+		{codes; bytes = byte t codes;}
+	in
+	let end_ =
+		let codes = Cursor.end_ c in
+		{codes; bytes = byte t codes;}
+	in
+	let patch_addresses a =
+		List.map
+			(fun a ->
+				{bytes = a.bytes - (start.bytes - t.start.bytes);
+				codes = a.codes - (start.codes - t.start.codes);
+				}
+			)
+			(List.filter
+				(fun {codes} -> Cursor.contains c codes)
+				a
+			)
+	in
 	{t with
-	start = (let codes = Cursor.start c in {codes; bytes = byte t codes;});
-	end_ = (let codes = Cursor.end_ c in {codes; bytes = byte t codes;});
+	start;
+	end_;
 	milestones = patch_addresses t.milestones;
 	newlines = patch_addresses t.newlines;
 	malformeds = patch_addresses t.malformeds;
 	}
+
+(* TODO: allow add offset and length optional arguments *)
 let from_string s =
-	let (newlines, milestones, end_, malformeds) = failwith "TODO" in
+	let (codes, rev_newlines, rev_milestones, rev_malformeds) =
+		Uutf.String.fold_utf_8
+			(fun (codes, newlines, milestones, malformeds) bytes u ->
+				let milestones =
+					(* TODO: find a good value for that *)
+					if codes mod 256 = 0 then
+						{codes; bytes;}::milestones
+					else
+						milestones
+				in
+				match u with
+				| `Malformed _ ->
+					(codes+1,
+					newlines,
+					milestones,
+					{codes; bytes;}::malformeds)
+				| `Uchar u ->
+					(* TODO: support CR (\r) and NEL *)
+					if u = Char.code '\n' then
+						(codes+1,
+						{codes; bytes;}::newlines,
+						milestones,
+						malformeds)
+					else
+						(codes+1,
+						newlines,
+						milestones,
+						malformeds)
+			)
+			(0, [], [], [])
+			s
+	in
 	{
 		content = s;
 		start = {bytes=0; codes=0;};
-		end_;
-		milestones;
-		newlines;
-		malformeds;
+		end_ = {codes = codes; bytes = String.length s;};
+		milestones = List.rev rev_milestones;
+		newlines = List.rev rev_newlines;
+		malformeds = List.rev rev_malformeds;
 	}
 let to_string t =
 	String.sub t.content t.start.bytes (t.end_.bytes - t.start.bytes)
