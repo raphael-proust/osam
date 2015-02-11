@@ -18,4 +18,8 @@ val sub: t -> Cursor.t -> t
  *
  * TODO: this is potentially confusing specs (interleaving bytes and codes,
  * maybe use type aliases. *)
-val hook: ('a -> string -> int -> int -> 'a) -> 'a -> t -> int -> int -> 'a
+val hook :
+	?o:int -> ?l:int ->
+	f:('a -> string -> int -> int -> 'a) -> acc:'a ->
+	t ->
+	'a

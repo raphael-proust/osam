@@ -24,4 +24,5 @@ val split_relative: t -> int -> t * t
 val split_absolute: t -> int -> t * t
 
 val overlap: t -> t -> bool
+val contains: t -> int -> bool
 
