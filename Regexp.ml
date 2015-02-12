@@ -40,7 +40,7 @@ module Interp = struct
 		let rec loop cur = function
 			| Epsilon -> Some cur
 			| Point u ->
-				if failwith "TODO: get uchar at (Cursor.end_ cur)" = u then
+				if Text.uchar txt (Cursor.end_ cur) = u then
 					Some (Cursor.shift_end cur 1)
 				else
 					None

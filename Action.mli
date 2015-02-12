@@ -6,7 +6,8 @@ type addr =
 	| Dot
 	(** Absolute number of characters *)
 	| Offset of int
-	(** Absolute number of newline characters *)
+	(** The range between the [n-1]th and [n]th newline character. The [n-1]th
+	 * newline char is the start of the text. *)
 	| Line of int
 	(** The last line *)
 	| LastLine

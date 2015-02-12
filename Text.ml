@@ -83,6 +83,35 @@ let byte t o =
 	in
 	find (find_milestone zero t.milestones)
 
+exception Early_Return_Uchar of Uutf.uchar
+let uchar t o =
+	(* TODO: make into a reasonable performance.. easy with [fold] taking pos
+	 * and len. *)
+	try
+		let _:int =
+			Uutf.String.fold_utf_8
+				(fun o _ u ->
+					if o = 0 then
+						match u with
+						| `Uchar u -> raise (Early_Return_Uchar u)
+						| `Malformed m -> failwith "TODO: error mgmt"
+					else
+						o - 1
+				)
+				o
+				t.content
+		in
+		raise (Invalid_argument "Code beyond end of text")
+	with
+		| Early_Return_Uchar u -> u
+
+let newline t n =
+	(*TODO: error management*)
+	(*TODO: we return the code offset which is probably later turned into a
+	 * byte offset. Expose an abstract address and have [offset] and [newline]
+	 * resolve to it. *)
+	(List.nth t.newlines n).codes
+
 let hook ?(o=0) ?l ~f ~acc t =
 	let l = match l with
 		| None -> (t.end_.codes - t.start.codes) - o

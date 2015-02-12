@@ -59,7 +59,10 @@ let rec address text dot marks start reverse = function
 	 * [dot] and [start] are unrelated. *)
 	| Dot -> dot
 	| Offset i -> Cursor.mk_relative ~start:i ~offset:0
-	| Line _ -> failwith "TODO: line addresses"
+	| Line n ->
+		let start = if n = 0 then 0 else Text.newline text (n-1) in
+		let end_ = Text.newline text n in
+		Cursor.mk_absolute ~start ~end_
 	| LastLine -> failwith "TODO: LastLine address"
 	| Mark m -> begin
 		match Mark.get marks m with
@@ -81,14 +84,14 @@ let rec address text dot marks start reverse = function
 		let c2 = address text c1 marks (Cursor.end_ c1) reverse a2 in
 		Cursor.range c1 c2
 	| ForwardRe re -> begin
-		let dfa = Re.compile re in
-		match Re.next_match dfa text (Cursor.mk_absolute start start) with
+		let re = Re.compile re in
+		match Re.next_match re text (Cursor.mk_absolute start start) with
 		| None -> failwith "TODO: error mgmt"
 		| Some c -> c
 	end
 	| BackwardRe re -> begin
-		let dfa = Re.compile re in
-		match Re.prev_match dfa text (Cursor.mk_absolute start start) with
+		let re = Re.compile re in
+		match Re.prev_match re text (Cursor.mk_absolute start start) with
 		| None -> failwith "TODO: error mgmt"
 		| Some c -> c
 	end

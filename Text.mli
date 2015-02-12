@@ -14,6 +14,11 @@ val to_string: t -> string
  * cursor. *)
 val sub: t -> Cursor.t -> t
 
+val uchar: t -> int -> Uutf.uchar
+
+(* gives the offset of the [n]th newline character *)
+val newline: t -> int -> int
+
 (* [hook f init t s l] folds [f] over chunks of strings that represent the
  * substring of [t] starting at code [s] and [l] codes long. The arguments of
  * [f] are in bytes.
