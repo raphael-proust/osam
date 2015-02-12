@@ -19,5 +19,6 @@ module type S = sig
 	val all_matches: t -> Text.t -> Cursor.t -> Cursor.t list
 end
 
+module Interp : S
 module NFA : S
 module DFA : S

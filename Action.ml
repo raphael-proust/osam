@@ -9,7 +9,7 @@
  *)
 
 module Mark = Mark.Unit
-module Re = Regexp.DFA
+module Re = Regexp.Interp
 
 (** Addresses: addresses describe ranges in the document *)
 type addr =

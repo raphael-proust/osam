@@ -2,13 +2,12 @@
 module DSL = struct
 	type t =
 		| Epsilon
-		| Byte of char
+		| Point of Uutf.uchar
 		| Choice of t list
 		| Sequence of t list
 		| Loop of t
 
-	let point b =
-		failwith "TODO: emit the UTF8 bytes and make a sequence"
+	let point u = Point u
 	let seq ts = Sequence ts
 	let alt ts = Choice ts
 	let question t = Choice [t ; Epsilon]
@@ -27,8 +26,84 @@ module type S = sig
 	val all_matches: t -> Text.t -> Cursor.t -> Cursor.t list
 end
 
+module Interp = struct
+	type t = DSL.t =
+		| Epsilon
+		| Point of Uutf.uchar
+		| Choice of t list
+		| Sequence of t list
+		| Loop of t
+
+	let compile t = t
+
+	let next_match t txt c =
+		let rec loop cur = function
+			| Epsilon -> Some cur
+			| Point u ->
+				if failwith "TODO: get uchar at (Cursor.end_ cur)" = u then
+					Some (Cursor.shift_end cur 1)
+				else
+					None
+			| Choice ts -> begin
+				match ts with
+				| [] -> None
+				| t::ts -> match loop cur t with
+					| Some _ as c -> c
+					| None -> loop cur (Choice ts)
+			end
+			| Sequence ts -> begin
+				match ts with
+				| [] -> Some cur
+				| t::ts -> match loop cur t with
+					| Some c -> loop cur (Sequence ts)
+					| None -> None
+			end
+			| Loop t -> begin
+				match loop cur t with
+				| None -> Some cur
+				| Some cur -> loop cur (Loop t)
+			end
+		in
+		let rec looploop start =
+			if start = Cursor.end_ c then
+				None
+			else
+				match loop (Cursor.mk_point start) t with
+				| None -> looploop (start + 1)
+				| Some c -> Some c
+		in
+		looploop (Cursor.start c)
+				
+
+	let prev_match _ _ _ = failwith "TODO"
+
+	let all_matches t txt c =
+		let rec loop acc off =
+			if off = Cursor.end_ c then
+				acc
+			else
+				match next_match t txt Cursor.(mk_absolute off (end_ c)) with
+				| None -> acc
+				| Some c -> loop (c::acc) (Cursor.end_ c)
+		in
+		loop [] (Cursor.start c)
+
+	let has_match t txt c =
+		(* This is not optimal: we can abort early instead of being greedy. *)
+		match next_match t txt c with
+		| None -> false
+		| Some _ -> true
+
+end
+
 module NFA = struct
 	type t
+
+	(* Compile strategy:
+		* transform [Point u] into a sequence of bytes
+		* there's only byte, choice, seq, and loop: make an byte-automata
+		* use the `hook` to pass bytes directly, instead of uchars.
+	*)
 	let compile _ = failwith "TODO"
 	let has_match _ _ _ = failwith "TODO"
 	let next_match _ _ _ = failwith "TODO"
