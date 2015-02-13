@@ -47,7 +47,6 @@ type t = {
 
 let length t = t.end_.codes - t.start.codes
 
-exception Early_Return_Byte of int
 let byte t o =
 	if o > (t.end_.codes - t.start.codes) then
 		raise (Invalid_argument "Code out of bound")
@@ -61,25 +60,24 @@ let byte t o =
 				find_milestone m ms
 	in
 	let find m =
-		try
-			Uutf.String.fold_utf_8
-				(* See https://github.com/dbuenzli/uutf/pull/6
-				~pos:(start.bytes + m.bytes)
-				*)
-				(fun oo b _ ->
-					if oo = o then
-						raise (Early_Return_Byte b)
-					else begin
-						assert (oo < o);
-						oo+1
-					end
-				)
-				(* See https://github.com/dbuenzli/uutf/pull/6
-				m.codes
-				*) (- t.start.codes)
-				t.content
-		with
-		| Early_Return_Byte b -> b
+		let decoder = Uutf.decoder ~encoding:`UTF_8 `Manual in
+		let () =
+			let start = t.start.bytes + m.bytes in
+			let len = t.end_.bytes - start in
+			Uutf.Manual.src decoder t.content start len
+		in
+		let rec loop o =
+			if o = 0 then
+				Uutf.decoder_byte_count decoder
+			else
+				match Uutf.decode decoder with
+				| `End -> assert false
+				| `Await ->
+					Uutf.Manual.src decoder "" 0 0;
+					loop o
+				| `Malformed _ | `Uchar _ -> loop (o-1)
+		in
+		loop (o - m.codes) + m.bytes
 	in
 	find (find_milestone zero t.milestones)
 
@@ -126,6 +124,9 @@ let hook ?(o=0) ?l ~f ~acc t =
 	f acc t.content o l
 
 let sub t c =
+	if Cursor.end_ c > t.end_.codes then
+		raise (Invalid_argument "Code out of bound")
+	else
 	let start =
 		let codes = Cursor.start c in
 		{codes; bytes = byte t codes;}
@@ -197,4 +198,45 @@ let from_string s =
 		malformeds = List.rev rev_malformeds;
 	}
 let to_string t =
-	String.sub t.content t.start.bytes (t.end_.bytes - t.start.bytes)
+	if t.start.bytes >= String.length t.content then
+		""
+	else
+		String.sub t.content t.start.bytes (t.end_.bytes - t.start.bytes)
+
+
+let test () =
+	let ab = from_string "abcdefghijklmnopqrstuvwxyz" in
+	let abn = from_string "a\nb\nc\nd\ne\nf\ng\nh\ni\nj\nk\nl\nm\nn\no\np\nq\nr\ns\nt\nu\nv\nw\nx\ny\nz\n" in
+	let u = from_string "⋄⎕" in
+
+	let print t =
+		Printf.printf "%s [%d(%d),%d(%d)]: "
+			t.content
+			t.start.codes t.start.bytes
+			t.end_.codes t.end_.bytes;
+		Printf.printf "%s\n%!"
+			(to_string t)
+	in
+
+	print ab;
+	print (sub ab (Cursor.mk_absolute 0 0));
+	print (sub ab (Cursor.mk_absolute 0 1));
+	print (sub ab (Cursor.mk_absolute 1 1));
+	print (sub ab (Cursor.mk_absolute 0 26));
+	print (sub ab (Cursor.mk_absolute 2 3));
+
+	print abn;
+	print (sub abn (Cursor.mk_absolute 0 (newline abn 0)));
+	print (sub abn (Cursor.mk_absolute (newline abn 0) (newline abn 1)));
+	print (sub abn (Cursor.mk_absolute 0 (newline abn 1)));
+	print (sub abn (Cursor.mk_absolute 0 (newline abn 2)));
+
+	print u;
+	print (sub u (Cursor.mk_absolute 0 0));
+	print (sub u (Cursor.mk_absolute 0 1));
+	print (sub u (Cursor.mk_absolute 0 2));
+	print (sub u (Cursor.mk_absolute 1 2));
+(* 	print (sub u (Cursor.mk_absolute 2 2)); *)
+
+	()
+

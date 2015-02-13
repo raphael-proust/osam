@@ -61,13 +61,13 @@ Cursor.cmi :
 Mark.cmo : Cursor.cmi Mark.cmi
 Mark.cmx : Cursor.cmx Mark.cmi
 Mark.cmi : Cursor.cmi
-osam.cmo : Text.cmi Patch.cmi Mark.cmi Cursor.cmi Action.cmi
-osam.cmx : Text.cmx Patch.cmx Mark.cmx Cursor.cmx Action.cmx
+osam.cmo : Text.cmi Regexp.cmi Patch.cmi Cursor.cmi Action.cmi
+osam.cmx : Text.cmx Regexp.cmx Patch.cmx Cursor.cmx Action.cmx
 Patch.cmo : Text.cmi Cursor.cmi Patch.cmi
 Patch.cmx : Text.cmx Cursor.cmx Patch.cmi
 Patch.cmi : Text.cmi Cursor.cmi
-Regexp.cmo : Regexp.cmi
-Regexp.cmx : Regexp.cmi
+Regexp.cmo : Text.cmi Cursor.cmi Regexp.cmi
+Regexp.cmx : Text.cmx Cursor.cmx Regexp.cmi
 Regexp.cmi : Text.cmi Cursor.cmi
 Syscmd.cmo : Syscmd.cmi
 Syscmd.cmx : Syscmd.cmi
