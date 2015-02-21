@@ -14,6 +14,7 @@ let () =
 		print_endline expect;
 		let (patches, _) = Action.run ~text ~dot ~marks addr act in
 		let patches = Patch.sort patches in
+		let () = List.iter (fun p -> print_endline (Patch.print p)) patches in
 		let () =
 			Patch.hook
 				~f:(fun () -> output_substring stdout)

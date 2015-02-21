@@ -11,3 +11,6 @@ val hook:
 	Text.t ->
 	t list ->
 	'a
+
+(*/*)
+val print: t -> string

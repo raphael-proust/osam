@@ -49,7 +49,7 @@ let length t = t.end_.codes - t.start.codes
 
 let byte t o =
 	if o > (t.end_.codes - t.start.codes) then
-		raise (Invalid_argument "Code out of bound")
+		raise (Invalid_argument "Code out of bound (1)")
 	else
 	let rec find_milestone candidate = function
 		| [] -> candidate
@@ -115,7 +115,7 @@ let hook ?(o=0) ?l ~f ~acc t =
 		| None -> (t.end_.codes - t.start.codes) - o
 		| Some l ->
 			if l > (t.end_.codes - t.start.codes) - o then
-				raise (Invalid_argument "Code out of bound")
+				raise (Invalid_argument "Code out of bound (2)")
 			else
 				l
 	in
@@ -125,7 +125,7 @@ let hook ?(o=0) ?l ~f ~acc t =
 
 let sub t c =
 	if Cursor.end_ c > t.end_.codes then
-		raise (Invalid_argument "Code out of bound")
+		raise (Invalid_argument "Code out of bound (3)")
 	else
 	let start =
 		let codes = Cursor.start c in
