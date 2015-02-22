@@ -60,8 +60,13 @@ let hook ?(o=0) ?l ~f ~acc txt patches =
 				in
 				loop acc offset_p (Cursor.end_ cur) patches
 	in
-	let get_offset_t _ _ = 0 (*FIXME!*) in
-	loop acc o (get_offset_t o patches) patches
+	let get_offset_t _ =
+		if o = 0 then
+			0
+		else
+			failwith "TODO: text offset computation"
+	in
+	loop acc o (get_offset_t patches) patches
 
 let print (c,t) =
 	let (s,e) = Cursor.absolute c in

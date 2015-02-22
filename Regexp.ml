@@ -34,10 +34,29 @@ module Interp = struct
 		| Sequence of t list
 		| Loop of t
 
+	let rec string_of_re = function
+		| Epsilon -> ""
+		| Point u -> "<" ^ Uutf.cp_to_string u ^ ">"
+		| Choice ts ->
+			"{" ^ String.concat "," (List.map string_of_re ts) ^ "}"
+		| Sequence ts ->
+			String.concat "" (List.map string_of_re ts)
+		| Loop t ->
+			string_of_re t ^ "*"
+
 	let compile t = t
 
 	let next_match t txt c =
-		let rec loop cur = function
+		let rec loop cur re =
+			let () =
+				let (s,e) = Cursor.absolute cur in
+				print_endline (
+					"RE state: ("
+					^ string_of_int s ^ ", " ^ string_of_int e ^ ") "
+					^ string_of_re re
+				)
+			in
+			match re with
 			| Epsilon -> Some cur
 			| Point u ->
 				if Text.uchar txt (Cursor.end_ cur) = u then
@@ -55,7 +74,7 @@ module Interp = struct
 				match ts with
 				| [] -> Some cur
 				| t::ts -> match loop cur t with
-					| Some c -> loop cur (Sequence ts)
+					| Some cur -> loop cur (Sequence ts)
 					| None -> None
 			end
 			| Loop t -> begin

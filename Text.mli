@@ -30,7 +30,3 @@ val hook :
 	f:('a -> string -> int -> int -> 'a) -> acc:'a ->
 	t ->
 	'a
-
-
-(*/*)
-val test: unit -> unit

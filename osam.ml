@@ -1,8 +1,6 @@
 
 let () = Printexc.record_backtrace true
 
-let () = Text.test ()
-
 let () =
 	let text = Text.from_string "foobarbaz" in
 	let dot = Cursor.mk_relative 0 9 in
